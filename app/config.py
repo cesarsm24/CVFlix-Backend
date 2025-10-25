@@ -298,7 +298,7 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
-if not TMDB_API_KEY or TMDB_API_KEY == "your_api_key_here":
+if not TMDB_API_KEY:
     logger.error("❌ TMDB_API_KEY no configurado correctamente")
 
 
