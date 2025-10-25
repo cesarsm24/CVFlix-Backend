@@ -3,14 +3,20 @@ FROM python:3.11-slim
 
 # Instalar dependencias del sistema necesarias para dlib y opencv
 RUN apt-get update && apt-get install -y \
-    cmake \
     build-essential \
     libopenblas-dev \
     liblapack-dev \
     libx11-dev \
     libgtk-3-dev \
     libboost-python-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Instalar CMake 3.27+ (dlib requiere CMake >= 3.5)
+RUN wget -q https://github.com/Kitware/CMake/releases/download/v3.27.7/cmake-3.27.7-linux-x86_64.sh \
+    && chmod +x cmake-3.27.7-linux-x86_64.sh \
+    && ./cmake-3.27.7-linux-x86_64.sh --skip-license --prefix=/usr/local \
+    && rm cmake-3.27.7-linux-x86_64.sh
 
 # Establecer directorio de trabajo
 WORKDIR /app
