@@ -6,7 +6,15 @@
 # ==================== COMPILACIÓN ====================
 setuptools>=70.0.0
 wheel>=0.42.0
-pip>=23.0.0
+
+# ==================== DEPENDENCIAS BASE ====================
+# numpy debe ir primero porque muchos paquetes dependen de él
+numpy==1.24.3
+
+# ==================== RECONOCIMIENTO FACIAL ====================
+# CRÍTICO: dlib ANTES de face-recognition
+dlib==19.24.2
+face-recognition==1.3.0
 
 # ==================== SERVIDOR Y API ====================
 fastapi==0.104.1
@@ -20,12 +28,7 @@ httpx==0.25.2
 
 # ==================== PROCESAMIENTO DE VIDEO ====================
 opencv-python-headless==4.8.1.78
-numpy==1.24.3
 Pillow==10.1.0
-
-# ==================== RECONOCIMIENTO FACIAL ====================
-face-recognition==1.3.0
-dlib==19.24.2
 
 # ==================== MACHINE LEARNING ====================
 tensorflow-cpu==2.15.0; platform_system != "Darwin"
