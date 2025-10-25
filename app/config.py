@@ -294,7 +294,7 @@ class ModelValidator:
 
 
 # ==================== API KEYS ====================
-TMDB_API_KEY = os.getenv("TMDB_API_KEY", "2d51820b0b76e3ea8a7d2862af21839a")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
