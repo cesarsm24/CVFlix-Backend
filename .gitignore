@@ -1,4 +1,8 @@
-# Python
+# ==============================================================================
+# CVFlix - .gitignore
+# ==============================================================================
+
+# ==================== PYTHON ====================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,48 +25,125 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# ==================== VIRTUAL ENVIRONMENTS ====================
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
-# Testing
+# ==================== CONDA ====================
+# NO versionar entornos conda
+envs/
+.conda/
+# Archivos de seguimiento del instalador
+.cvflix_conda_installed
+
+# ==================== SCRIPTS GENERADOS ====================
+# Scripts creados automáticamente por install.sh
+start.sh
+activate.sh
+
+# ==================== TESTING ====================
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .nox/
+*.cover
+.hypothesis/
 
-# Project specific
+# ==================== PROJECT SPECIFIC ====================
+# Cache de la aplicación
 cache/
 videos/temp/
 videos/processed/
 videos/*.mp4
 videos/*.avi
 videos/*.mov
+
+# Logs
 logs/*.log
 logs/*.json.log
+*.log
 
-# OS
+# Datos de usuario
+data/uploads/
+data/temp/
+*.csv
+
+# ==================== OS ====================
+# macOS
 .DS_Store
-Thumbs.db
 ._*
+.AppleDouble
+.LSOverride
 
-# IDE
+# Windows
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Linux
+*~
+.directory
+
+# ==================== IDE ====================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
-*~
+*.swn
 
-# Environment
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ==================== ENVIRONMENT ====================
+# Archivos de configuración con secretos
 .env
 .env.local
 .env.*.local
 
-# Database
+# ==================== DATABASE ====================
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+
+# Datasets
+datasets/
+data/raw/
+
+# ==================== JUPYTER ====================
+.ipynb_checkpoints/
+*.ipynb
+
+# ==================== DOCUMENTATION ====================
+# Documentación generada
+docs/_build/
+site/
+
+# ==================== OTROS ====================
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+.cache/
+
+# Archivos de sistema
+.Trash-*/
+$RECYCLE.BIN/

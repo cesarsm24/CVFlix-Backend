@@ -1,64 +1,59 @@
 # ==============================================================================
-# CVFlix Backend - Production Requirements v4.0.0
-# Python 3.11
+# CVFlix Backend - Requirements
+# Python 3.11+
+# Instalación: bash install.sh (automático)
 # ==============================================================================
 
-# ==================== COMPILACIÓN ====================
-setuptools>=70.0.0
-wheel>=0.42.0
+# ==================== BUILD TOOLS ====================
+setuptools>=69.0.0,<70.0.0
+wheel>=0.42.0,<1.0.0
 
-# ==================== DEPENDENCIAS BASE ====================
-# numpy debe ir primero porque muchos paquetes dependen de él
-numpy==1.24.3
+# ==================== BASE ====================
+numpy>=1.24.0,<2.0.0
 
-# ==================== RECONOCIMIENTO FACIAL ====================
-# CRÍTICO: dlib ANTES de face-recognition
-dlib==19.24.2
-face-recognition==1.3.0
+# ==================== FACE RECOGNITION ====================
+# ⚠️ IMPORTANTE: dlib NO está en este archivo
+# El instalador lo maneja automáticamente:
+#   - conda install -c conda-forge dlib (wheels precompilados)
+# cmake>=3.18.0
+# dlib>=19.24.0
 
-# ==================== SERVIDOR Y API ====================
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-websockets==12.0
-sse-starlette==1.8.2
+face-recognition>=1.3.0,<2.0.0
+face-recognition-models>=0.3.0
 
-# Cliente HTTP asíncrono (para proxy de imágenes TMDB)
-httpx==0.25.2
+# ==================== SERVER & API ====================
+fastapi>=0.104.0,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+python-multipart>=0.0.6,<1.0.0
+websockets>=12.0,<13.0
+sse-starlette>=1.8.0,<2.0.0
+httpx>=0.25.1,<0.28.0
+requests>=2.31.0,<3.0.0
 
-# ==================== PROCESAMIENTO DE VIDEO ====================
-opencv-python-headless==4.8.1.78
-Pillow==10.1.0
+# ==================== VIDEO PROCESSING ====================
+opencv-python-headless>=4.8.0,<5.0.0
+Pillow>=10.1.0,<11.0.0
 
 # ==================== MACHINE LEARNING ====================
-tensorflow-cpu==2.15.0; platform_system != "Darwin"
-tensorflow-macos==2.15.0; platform_system == "Darwin" and platform_machine == "arm64"
-tensorflow-metal==1.1.0; platform_system == "Darwin" and platform_machine == "arm64"
-scikit-learn==1.3.2
-scipy==1.11.4
+# ⚠️ TensorFlow NO está aquí - el instalador lo maneja por sistema
+# Razón: pip no siempre detecta bien los markers en conda
+# El script install.sh instala la versión correcta automáticamente
 
-# ==================== VISUALIZACIÓN ====================
-matplotlib==3.8.0
+scikit-learn>=1.3.0,<1.5.0
+scipy>=1.11.0,<1.14.0
 
-# ==================== API EXTERNA ====================
-requests==2.31.0
-webcolors==24.6.0
+# ==================== VISUALIZATION ====================
+matplotlib>=3.8.0,<4.0.0
 
-# ==================== VALIDACIÓN Y CONFIGURACIÓN ====================
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-dotenv==1.0.0
+# ==================== EXTERNAL API ====================
+webcolors>=1.13.0,<2.0.0
 
-# ==================== SEGURIDAD ====================
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# ==================== VALIDATION & CONFIG ====================
+pydantic>=2.5.0,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
 
-# ==================== UTILIDADES ====================
-aiofiles==23.2.1
-colorama==0.4.6
-
-# ==================== MONITOREO Y RENDIMIENTO ====================
-psutil==5.9.6
-
-# ==================== SERVIDOR DE PRODUCCIÓN ====================
-gunicorn==21.2.0
+# ==================== SECURITY ====================
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+cryptography>=41.0.0,<43.0.0
