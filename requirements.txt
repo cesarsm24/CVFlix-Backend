@@ -1,0 +1,70 @@
+# ==============================================================================
+# CVFlix Backend - Production Requirements v4.0.0 (Optimizado para Render)
+# Python 3.11
+# ==============================================================================
+
+# ==================== SERVIDOR Y API ====================
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+websockets==12.0
+sse-starlette==1.8.2
+
+# Cliente HTTP asíncrono (para proxy de imágenes TMDB)
+httpx==0.25.2
+
+# SSE para streaming en tiempo real (compatible con móviles)
+sse-starlette==1.8.2
+
+# ==================== PROCESAMIENTO DE VIDEO ====================
+# VERSIÓN HEADLESS para servidores sin GUI
+opencv-python-headless==4.8.1.78
+numpy==1.24.3
+Pillow==10.1.0
+
+# ==================== RECONOCIMIENTO FACIAL ====================
+face-recognition==1.3.0
+dlib==19.24.2
+
+# ==================== MACHINE LEARNING ====================
+# TensorFlow CPU-only (50% más ligero, sin GPU)
+tensorflow-cpu==2.15.0; platform_system != "Darwin"
+tensorflow-macos==2.15.0; platform_system == "Darwin" and platform_machine == "arm64"
+tensorflow-metal==1.1.0; platform_system == "Darwin" and platform_machine == "arm64"
+# keras ya viene incluido en tensorflow 2.15
+
+# Análisis y procesamiento
+scikit-learn==1.3.2
+scipy==1.11.4
+
+# ==================== VISUALIZACIÓN ====================
+# Sin backend de GUI para servidores
+matplotlib==3.8.0
+
+# ==================== API EXTERNA ====================
+requests==2.31.0
+
+# Análisis de colores
+webcolors==24.6.0
+
+# ==================== VALIDACIÓN Y CONFIGURACIÓN ====================
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# ==================== SEGURIDAD ====================
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ==================== UTILIDADES ====================
+aiofiles==23.2.1
+colorama==0.4.6
+
+# ==================== MONITOREO Y RENDIMIENTO ====================
+psutil==5.9.6
+
+# ==================== COMPATIBILIDAD ====================
+setuptools==69.0.0
+
+# ==================== SERVIDOR DE PRODUCCIÓN ====================
+gunicorn==21.2.0

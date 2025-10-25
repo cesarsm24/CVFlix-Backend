@@ -1,0 +1,48 @@
+# ==============================================================================
+# CVFlix Backend - Development Requirements v4.0.0
+# Solo para desarrollo local, testing y QA
+# ==============================================================================
+
+# Incluir todas las dependencias de producción
+-r requirements.txt
+
+# ==================== TESTING ====================
+# Framework de testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+pytest-xdist==3.5.0
+
+# Testing de API y WebSocket
+pytest-httpx==0.27.0
+
+# Datos de prueba realistas
+faker==20.1.0
+
+# ==================== CALIDAD DE CÓDIGO ====================
+# Formateo automático
+black==23.12.1
+isort==5.13.2
+
+# Linting
+flake8==6.1.0
+pylint==3.0.3
+
+# Type checking
+mypy==1.7.1
+
+# Análisis de seguridad
+bandit==1.7.6
+
+# ==================== DESARROLLO ====================
+# Debugging mejorado
+ipython==8.18.1
+ipdb==0.13.13
+
+# Hot reload mejorado
+watchdog==3.0.0
+
+# Pre-commit hooks
+pre-commit==3.6.0
