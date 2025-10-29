@@ -9,6 +9,21 @@ Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - requests: Cliente HTTP para consumir API REST
+    - Pillow: Procesamiento y conversión de imágenes
+    - numpy: Conversión de imágenes a arrays
+
+Usage:
+    from app.services.tmdb_service import TMDBService
+
+    tmdb = TMDBService()
+    content_id, content_type = tmdb.search_content("Breaking Bad")
+
+    if content_id:
+        cast = tmdb.get_cast(content_id, content_type)
+        poster_url = tmdb.get_poster_url(content_id, content_type)
 """
 
 import requests
@@ -28,9 +43,9 @@ class TMDBService:
     de actores en formato numpy array para procesamiento con OpenCV.
 
     Attributes:
-        api_key (str): Clave API de TMDB para autenticación.
-        base_url (str): URL base de la API v3 de TMDB.
-        image_base (str): URL base del CDN de imágenes de TMDB.
+        api_key: Clave API de TMDB para autenticación
+        base_url: URL base de la API v3 de TMDB
+        image_base: URL base del CDN de imágenes de TMDB
     """
 
     def __init__(self):
@@ -54,7 +69,7 @@ class TMDBService:
         y selecciona el mejor puntuado considerando vote_average y popularity.
 
         Args:
-            query: Término de búsqueda (título de película o serie).
+            query: Término de búsqueda (título de película o serie)
             content_type: Tipo de contenido a buscar. Valores válidos:
                 - "movie": solo películas
                 - "tv": solo series
@@ -68,16 +83,14 @@ class TMDBService:
         Notes:
             Algoritmo de selección:
                 1. Busca películas y/o series según content_type
-                2. Filtra resultados con menos de 100 votos (evita contenido oscuro)
+                2. Filtra resultados con menos de 50 votos (evita contenido oscuro)
                 3. Ordena por vote_average descendente, luego por popularity
                 4. Retorna el primer resultado (mejor puntuado)
+                5. Si no hay resultados con ≥50 votos, toma el más popular
 
-            El umbral de 100 votos previene que películas/series con un solo
+            El umbral de 50 votos previene que películas/series con un solo
             voto de 10/10 sean consideradas mejor puntuadas que contenido
             popular con 8.5/10 promedio de miles de votos.
-
-            En caso de error durante la búsqueda, registra el traceback completo
-            y retorna (None, None) sin interrumpir el flujo de la aplicación.
         """
         try:
             movies = []
@@ -85,55 +98,78 @@ class TMDBService:
 
             if content_type in ["movie", "auto"]:
                 movies = self._search_movies(query)
+                print(f"🔍 Películas encontradas: {len(movies)}")
+                if movies:
+                    print(f"   Primera película: {movies[0].get('title', 'N/A')} (votos: {movies[0].get('vote_count', 0)})")
 
             if content_type in ["tv", "auto"]:
                 tv_shows = self._search_tv_shows(query)
+                print(f"🔍 Series encontradas: {len(tv_shows)}")
 
             if not movies and not tv_shows:
+                print(f"❌ No se encontraron resultados para: {query}")
                 return None, None
 
             all_results = []
+            fallback_results = []
 
             for movie in movies:
                 vote_average = movie.get("vote_average", 0)
                 vote_count = movie.get("vote_count", 0)
 
-                if vote_count >= 100:
-                    all_results.append({
-                        "id": movie["id"],
-                        "type": "movie",
-                        "title": movie.get("title", "Sin título"),
-                        "year": movie.get("release_date", "")[:4] if movie.get("release_date") else "N/A",
-                        "vote_average": vote_average,
-                        "vote_count": vote_count,
-                        "popularity": movie.get("popularity", 0)
-                    })
+                result = {
+                    "id": movie["id"],
+                    "type": "movie",
+                    "title": movie.get("title", "Sin título"),
+                    "year": movie.get("release_date", "")[:4] if movie.get("release_date") else "N/A",
+                    "vote_average": vote_average,
+                    "vote_count": vote_count,
+                    "popularity": movie.get("popularity", 0)
+                }
+
+                if vote_count >= 50:
+                    all_results.append(result)
+                else:
+                    fallback_results.append(result)
 
             for tv in tv_shows:
                 vote_average = tv.get("vote_average", 0)
                 vote_count = tv.get("vote_count", 0)
 
-                if vote_count >= 100:
-                    all_results.append({
-                        "id": tv["id"],
-                        "type": "tv",
-                        "title": tv.get("name", "Sin título"),
-                        "year": tv.get("first_air_date", "")[:4] if tv.get("first_air_date") else "N/A",
-                        "vote_average": vote_average,
-                        "vote_count": vote_count,
-                        "popularity": tv.get("popularity", 0)
-                    })
+                result = {
+                    "id": tv["id"],
+                    "type": "tv",
+                    "title": tv.get("name", "Sin título"),
+                    "year": tv.get("first_air_date", "")[:4] if tv.get("first_air_date") else "N/A",
+                    "vote_average": vote_average,
+                    "vote_count": vote_count,
+                    "popularity": tv.get("popularity", 0)
+                }
+
+                if vote_count >= 50:
+                    all_results.append(result)
+                else:
+                    fallback_results.append(result)
 
             if not all_results:
+                print(f"⚠️ No hay resultados con ≥50 votos. Usando resultados alternativos.")
+                all_results = fallback_results
+
+            if not all_results:
+                print(f"❌ No hay resultados disponibles después de filtrado")
                 return None, None
 
             all_results.sort(key=lambda x: (x["vote_average"], x["popularity"]), reverse=True)
 
             best = all_results[0]
+            print(f"✅ Mejor resultado: {best['title']} ({best['year']}) - {best['type']}")
+            print(f"   Votos: {best['vote_count']}, Promedio: {best['vote_average']}, Popularidad: {best['popularity']}")
+
             return best["id"], best["type"]
 
         except Exception as e:
             import traceback
+            print(f"❌ Error en search_content:")
             traceback.print_exc()
             return None, None
 
@@ -142,11 +178,11 @@ class TMDBService:
         Realiza búsqueda de películas en API de TMDB.
 
         Args:
-            query: Término de búsqueda para películas.
+            query: Término de búsqueda para películas
 
         Returns:
             Lista de diccionarios con datos de películas encontradas.
-            Lista vacía si no hay resultados o hay error.
+            Lista vacía si no hay resultados o hay error
 
         Notes:
             Utiliza endpoint /search/movie con idioma español (es-ES) para
@@ -165,6 +201,7 @@ class TMDBService:
             data = response.json()
             return data.get("results", [])
         except Exception as e:
+            print(f"❌ Error en _search_movies: {e}")
             return []
 
     def _search_tv_shows(self, query: str) -> List[Dict]:
@@ -172,11 +209,11 @@ class TMDBService:
         Realiza búsqueda de series de TV en API de TMDB.
 
         Args:
-            query: Término de búsqueda para series.
+            query: Término de búsqueda para series
 
         Returns:
             Lista de diccionarios con datos de series encontradas.
-            Lista vacía si no hay resultados o hay error.
+            Lista vacía si no hay resultados o hay error
 
         Notes:
             Utiliza endpoint /search/tv con los mismos parámetros que la
@@ -194,6 +231,7 @@ class TMDBService:
             data = response.json()
             return data.get("results", [])
         except Exception as e:
+            print(f"❌ Error en _search_tv_shows: {e}")
             return []
 
     def get_cast(self, content_id: int, content_type: str, limit: int = 15) -> List[Dict]:
@@ -201,13 +239,13 @@ class TMDBService:
         Obtiene lista de reparto principal del contenido.
 
         Args:
-            content_id: ID de TMDB del contenido (película o serie).
-            content_type: Tipo de contenido ("movie" o "tv").
-            limit: Número máximo de actores a retornar. Por defecto 15.
+            content_id: ID de TMDB del contenido (película o serie)
+            content_type: Tipo de contenido ("movie" o "tv")
+            limit: Número máximo de actores a retornar. Por defecto 15
 
         Returns:
             Lista de diccionarios con información de actores ordenados por
-            importancia (billing order). Lista vacía si hay error.
+            importancia (billing order). Lista vacía si hay error
 
         Notes:
             La API de TMDB retorna el reparto ordenado por billing order
@@ -224,6 +262,7 @@ class TMDBService:
             cast = data.get("cast", [])[:limit]
             return cast
         except Exception as e:
+            print(f"❌ Error en get_cast: {e}")
             return []
 
     def get_content_details(self, content_id: int, content_type: str) -> Optional[Dict]:
@@ -231,12 +270,12 @@ class TMDBService:
         Obtiene metadatos completos del contenido.
 
         Args:
-            content_id: ID de TMDB del contenido.
-            content_type: Tipo de contenido ("movie" o "tv").
+            content_id: ID de TMDB del contenido
+            content_type: Tipo de contenido ("movie" o "tv")
 
         Returns:
             Diccionario con metadatos completos del contenido incluyendo título,
-            sinopsis, fecha de estreno, géneros, runtime, etc. None si hay error.
+            sinopsis, fecha de estreno, géneros, runtime, etc. None si hay error
 
         Notes:
             Los metadatos se obtienen en idioma español (es-ES) para consistencia
@@ -250,6 +289,7 @@ class TMDBService:
             response.raise_for_status()
             return response.json()
         except Exception as e:
+            print(f"❌ Error en get_content_details: {e}")
             return None
 
     def get_content_data(self, content_id: int, content_type: str) -> Optional[Dict]:
@@ -257,11 +297,11 @@ class TMDBService:
         Alias de get_content_details para compatibilidad con código legacy.
 
         Args:
-            content_id: ID de TMDB del contenido.
-            content_type: Tipo de contenido ("movie" o "tv").
+            content_id: ID de TMDB del contenido
+            content_type: Tipo de contenido ("movie" o "tv")
 
         Returns:
-            Mismo resultado que get_content_details().
+            Mismo resultado que get_content_details()
 
         Notes:
             Método mantenido para retrocompatibilidad con versiones anteriores
@@ -274,12 +314,12 @@ class TMDBService:
         Construye URL completa del poster en alta resolución.
 
         Args:
-            content_id: ID de TMDB del contenido.
-            content_type: Tipo de contenido ("movie" o "tv").
+            content_id: ID de TMDB del contenido
+            content_type: Tipo de contenido ("movie" o "tv")
 
         Returns:
             URL completa del poster en resolución w500 (500px ancho).
-            None si el contenido no tiene poster o hay error.
+            None si el contenido no tiene poster o hay error
 
         Notes:
             TMDB ofrece posters en múltiples resoluciones. Se utiliza w500
@@ -292,6 +332,7 @@ class TMDBService:
                 return f"{self.image_base}{details['poster_path']}"
             return None
         except Exception as e:
+            print(f"❌ Error en get_poster_url: {e}")
             return None
 
     def load_actor_image(self, profile_path: str) -> Optional[np.ndarray]:
@@ -299,11 +340,11 @@ class TMDBService:
         Descarga y convierte imagen de actor a numpy array RGB.
 
         Args:
-            profile_path: Ruta relativa de imagen en CDN de TMDB (e.g., "/abc.jpg").
+            profile_path: Ruta relativa de imagen en CDN de TMDB
 
         Returns:
             Array numpy en formato RGB (H, W, 3) listo para procesamiento con
-            OpenCV/face_recognition. None si no hay imagen o falla descarga.
+            OpenCV/face_recognition. None si no hay imagen o falla descarga
 
         Notes:
             Pipeline de procesamiento:
@@ -329,6 +370,7 @@ class TMDBService:
                 return np.array(img)
             return None
         except Exception as e:
+            print(f"❌ Error en load_actor_image: {e}")
             return None
 
     def load_cast_images(self, cast: List[Dict]) -> Dict[int, np.ndarray]:
@@ -336,11 +378,11 @@ class TMDBService:
         Descarga imágenes de múltiples actores en batch.
 
         Args:
-            cast: Lista de diccionarios de actores con campo profile_path.
+            cast: Lista de diccionarios de actores con campo profile_path
 
         Returns:
             Diccionario mapeando actor_id a numpy array RGB de su fotografía.
-            Solo incluye actores cuyas imágenes se descargaron exitosamente.
+            Solo incluye actores cuyas imágenes se descargaron exitosamente
 
         Notes:
             Procesa secuencialmente la lista de actores llamando a

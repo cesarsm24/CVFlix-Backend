@@ -9,6 +9,19 @@ Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - opencv-python: Detección HOG de personas y procesamiento de imágenes
+    - numpy: Operaciones con arrays
+
+Usage:
+    from app.analysis.shot_analyzer import ShotAnalyzer
+
+    analyzer = ShotAnalyzer()
+    result = analyzer.analyze_shot_type(frame, face_boxes)
+
+    print(f"Tipo: {result['shot_type']}")
+    print(f"Confianza: {result['confidence']}")
 """
 
 import cv2
@@ -45,9 +58,9 @@ class ShotAnalyzer:
     respecto al frame completo.
 
     Attributes:
-        hog (cv2.HOGDescriptor): Descriptor HOG (Histogram of Oriented Gradients)
-            configurado con detector SVM pre-entrenado para detección de personas.
-            Utiliza modelo estándar de Dalal-Triggs entrenado en dataset INRIA.
+        hog: Descriptor HOG (Histogram of Oriented Gradients) configurado con
+            detector SVM pre-entrenado para detección de personas. Utiliza modelo
+            estándar de Dalal-Triggs entrenado en dataset INRIA
     """
 
     def __init__(self):
@@ -59,7 +72,7 @@ class ShotAnalyzer:
         ante variaciones de pose y escala.
 
         Notes:
-            El detector HOG utiliza:
+            Configuración del detector HOG:
                 - Tamaño de ventana: 64x128 píxeles
                 - Tamaño de celda: 8x8 píxeles
                 - Tamaño de bloque: 16x16 píxeles (2x2 celdas)
@@ -81,27 +94,27 @@ class ShotAnalyzer:
         personas completas como alternativa (mejor para planos abiertos).
 
         Args:
-            frame: Frame a analizar en formato BGR (OpenCV) como numpy array con
-                dimensiones (H, W, 3).
+            frame: Frame a analizar en formato BGR como numpy array con
+                dimensiones (H, W, 3)
             face_boxes: Lista opcional de bounding boxes de rostros detectados en
                 formato [(x1, y1, x2, y2), ...]. Si se proporciona, se usa método
                 de análisis basado en rostros que es más preciso para planos cerrados.
-                None para usar solo detección de personas.
+                None para usar solo detección de personas
 
         Returns:
             Diccionario con resultados de análisis:
-                shot_type (str): Tipo de plano clasificado según ShotType enum.
-                confidence (float): Nivel de confianza de la clasificación [0.0, 1.0].
+                shot_type: Tipo de plano clasificado según ShotType enum
+                confidence: Nivel de confianza de la clasificación [0.0, 1.0]
 
                 Si análisis basado en rostros, incluye adicionalmente:
-                    face_height_ratio (float): Ratio altura_rostro / altura_frame.
-                    face_area_ratio (float): Ratio área_rostro / área_frame.
-                    vertical_position (float): Posición vertical normalizada [0.0, 1.0].
+                    face_height_ratio: Ratio altura_rostro / altura_frame
+                    face_area_ratio: Ratio área_rostro / área_frame
+                    vertical_position: Posición vertical normalizada [0.0, 1.0]
 
                 Si análisis basado en personas, incluye:
-                    person_height_ratio (float): Ratio altura_persona / altura_frame.
-                    person_area_ratio (float): Ratio área_persona / área_frame.
-                    people_detected (int): Número de personas detectadas en el frame.
+                    person_height_ratio: Ratio altura_persona / altura_frame
+                    person_area_ratio: Ratio área_persona / área_frame
+                    people_detected: Número de personas detectadas en el frame
 
         Notes:
             Estrategia de análisis:
@@ -134,20 +147,18 @@ class ShotAnalyzer:
 
         Método primario de clasificación que utiliza rostros como referencia
         principal. Analiza el rostro más grande detectado calculando ratios de
-        tamaño respecto al frame completo. Más preciso que detección de cuerpo
-        completo para planos cerrados y medios.
+        tamaño respecto al frame completo.
 
         Args:
-            frame: Frame completo en formato BGR (actualmente no utilizado pero
-                incluido por consistencia de interfaz).
+            frame: Frame completo en formato BGR
             face_boxes: Lista de tuplas con coordenadas de bounding boxes faciales
-                en formato (x1, y1, x2, y2).
-            frame_h: Altura del frame en píxeles.
-            frame_w: Ancho del frame en píxeles.
+                en formato (x1, y1, x2, y2)
+            frame_h: Altura del frame en píxeles
+            frame_w: Ancho del frame en píxeles
 
         Returns:
             Diccionario con tipo de plano clasificado, confianza y métricas de análisis.
-            Si face_boxes está vacía, retorna LONG_SHOT con confianza baja (0.3).
+            Si face_boxes está vacía, retorna LONG_SHOT con confianza baja (0.3)
 
         Notes:
             Métricas calculadas:
@@ -158,11 +169,11 @@ class ShotAnalyzer:
                   Métrica secundaria para refinar clasificación
 
                 - vertical_pos: posición_vertical_centro_rostro / altura_frame
-                  Útil para casos ambiguos (actualmente informativa, no clasificatoria)
+                  Útil para casos ambiguos
 
             Umbrales de clasificación por height_ratio:
                 - > 0.7 (70% del frame): Plano Detalle (EXTREME_CLOSEUP)
-                  Muestra parte del rostro (ojos, boca). Énfasis expresivo máximo.
+                  Muestra parte del rostro. Énfasis expresivo máximo.
 
                 - > 0.4 (40%): Primer Plano (CLOSEUP)
                   Rostro completo llena frame. Conexión emocional intensa.
@@ -174,18 +185,13 @@ class ShotAnalyzer:
                   Desde cintura hacia arriba. Diálogo estándar.
 
                 - > 0.1 (10%): Plano Americano (MEDIUM_FULL)
-                  Desde rodillas hacia arriba. Western clásico.
+                  Desde rodillas hacia arriba.
 
                 - <= 0.1: Plano Entero (FULL_SHOT)
                   Cuerpo completo visible. Contexto con acción.
 
-            Los niveles de confianza disminuyen gradualmente (0.9 → 0.65) en planos
-            más abiertos donde la detección facial es menos precisa como indicador
-            único del tipo de plano.
-
-            El rostro más grande se selecciona asumiendo que es el sujeto principal.
-            En escenas multi-persona, esto puede no ser siempre correcto pero es
-            heurística razonable para mayoría de casos.
+            Los niveles de confianza disminuyen gradualmente en planos más abiertos
+            donde la detección facial es menos precisa como indicador único.
         """
         if not face_boxes:
             return {"shot_type": ShotType.LONG_SHOT.value, "confidence": 0.3}
@@ -236,46 +242,44 @@ class ShotAnalyzer:
 
         Método de fallback cuando no hay rostros detectados. Utiliza HOG+SVM para
         detectar siluetas de personas y clasifica plano basándose en ratio de altura
-        de la persona más grande respecto al frame. Más robusto para planos abiertos
-        donde rostros son pequeños o no visibles.
+        de la persona más grande respecto al frame.
 
         Args:
-            frame: Frame completo en formato BGR para análisis HOG.
-            frame_h: Altura del frame en píxeles.
-            frame_w: Ancho del frame en píxeles.
-            frame_area: Área total del frame en píxeles cuadrados.
+            frame: Frame completo en formato BGR para análisis HOG
+            frame_h: Altura del frame en píxeles
+            frame_w: Ancho del frame en píxeles
+            frame_area: Área total del frame en píxeles cuadrados
 
         Returns:
             Diccionario con tipo de plano, confianza y métricas de detección.
-            Si no se detectan personas, retorna LONG_SHOT con confianza media (0.5).
+            Si no se detectan personas, retorna LONG_SHOT con confianza media (0.5)
 
         Notes:
             Pipeline de detección:
                 1. Redimensionado a 50% de escala para acelerar detección
-                   (HOG es computacionalmente intensivo en resoluciones altas)
                 2. Detección multi-escala con parámetros optimizados:
                    - winStride=(8,8): paso de ventana deslizante
                    - padding=(4,4): margen de seguridad
-                   - scale=1.05: factor de escalado piramidal (5% por nivel)
+                   - scale=1.05: factor de escalado piramidal
                 3. Reescalado de coordenadas a dimensiones originales
-                4. Selección de persona más grande (asumida como sujeto principal)
+                4. Selección de persona más grande como sujeto principal
                 5. Clasificación basada en height_ratio
 
             Umbrales de clasificación por height_ratio:
                 - > 0.85 (85%): Primer Plano (CLOSEUP)
-                  Persona llena casi todo el frame. Implica enfoque en rostro/torso.
+                  Persona llena casi todo el frame.
 
                 - > 0.65 (65%): Plano Medio (MEDIUM_SHOT)
                   Aproximadamente mitad superior del cuerpo visible.
 
                 - > 0.45 (45%): Plano Americano (MEDIUM_FULL)
-                  Desde rodillas hacia arriba. Encuadre western clásico.
+                  Desde rodillas hacia arriba.
 
                 - > 0.25 (25%): Plano Entero (FULL_SHOT)
-                  Cuerpo completo visible con margen. Permite ver acciones.
+                  Cuerpo completo visible con margen.
 
                 - <= 0.25: Plano General (LONG_SHOT)
-                  Persona pequeña en contexto amplio. Énfasis en ambiente.
+                  Persona pequeña en contexto amplio.
 
             Ventajas del método HOG:
                 - Robusto ante variaciones de pose y vestimenta
@@ -284,13 +288,9 @@ class ShotAnalyzer:
 
             Limitaciones:
                 - Menos preciso que rostros para planos muy cerrados
-                - Mayor coste computacional que detección facial
-                - Puede fallar con oclusiones parciales o poses inusuales
-                - Asume personas en posición vertical (bipedestación)
-
-            Niveles de confianza más altos (0.8-0.85) en rangos medios donde HOG
-            es más fiable. Confianza menor en CLOSEUP (0.75) porque HOG no está
-            optimizado para planos tan cerrados.
+                - Mayor coste computacional
+                - Puede fallar con oclusiones parciales
+                - Asume personas en posición vertical
         """
         scale = 0.5
         small_frame = cv2.resize(frame, None, fx=scale, fy=scale)
@@ -352,38 +352,29 @@ def visualize_shot_type(frame: np.ndarray, shot_info: Dict) -> np.ndarray:
     esquina superior izquierda del frame con fondo sólido para garantizar legibilidad.
 
     Args:
-        frame: Frame donde dibujar información en formato BGR (OpenCV) como numpy
-            array con dimensiones (H, W, 3). Se modifica in-place.
+        frame: Frame donde dibujar información en formato BGR como numpy array con
+            dimensiones (H, W, 3). Se modifica in-place
         shot_info: Diccionario con resultados de análisis, debe contener claves
-            'shot_type' (str) y 'confidence' (float).
+            'shot_type' y 'confidence'
 
     Returns:
         Frame modificado con overlay de información. El array se modifica in-place
-        pero también se retorna para encadenamiento de funciones.
+        pero también se retorna para encadenamiento de funciones
 
     Notes:
         Elementos visuales:
             - Posición: (20, 50) píxeles desde esquina superior izquierda
             - Fuente: FONT_HERSHEY_SIMPLEX, escala 0.8
             - Color: amarillo (255, 255, 0) en espacio BGR
-            - Grosor: 2 píxeles para buena visibilidad
+            - Grosor: 2 píxeles
             - Fondo: rectángulo negro sólido con padding de 5px
 
         Formato del texto:
             "{Tipo de Plano} ({confidence}%)"
-            Ejemplo: "Primer Plano (85%)"
 
-        El color amarillo se eligió por:
-            - Alto contraste con fondos oscuros y claros
-            - Asociación visual con información de metadatos
-            - Diferenciación de otros overlays (típicamente cian para datos técnicos)
-
-        Útil para:
-            - Visualización en tiempo real durante análisis
-            - Verificación de clasificaciones automáticas
-            - Demostraciones y material educativo
-            - Debugging de algoritmos de clasificación
-            - Generación de thumbnails anotados
+        El color amarillo se eligió por alto contraste con fondos oscuros y claros.
+        Útil para visualización en tiempo real, verificación de clasificaciones
+        automáticas y material educativo.
     """
     text = f"{shot_info['shot_type']} ({shot_info['confidence']:.0%})"
 

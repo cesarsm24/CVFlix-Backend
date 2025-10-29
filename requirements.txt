@@ -9,7 +9,10 @@ setuptools>=69.0.0,<70.0.0
 wheel>=0.42.0,<1.0.0
 
 # ==================== BASE ====================
-numpy>=1.24.0,<2.0.0
+numpy>=1.25.2,<2.0.0
+
+# ==================== SYSTEM MONITORING ====================
+psutil>=5.9.0,<6.0.0
 
 # ==================== FACE RECOGNITION ====================
 # ⚠️ IMPORTANTE: dlib NO está en este archivo

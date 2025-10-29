@@ -1,237 +1,244 @@
 """
 camera_movement.py
 
-Módulo para detección y análisis de movimientos de cámara en secuencias de video
-mediante técnicas de flujo óptico. Clasifica movimientos cinematográficos y evalúa
-estabilidad de cámara con métricas cuantitativas.
+Análisis de movimientos de cámara cinematográficos mediante optical flow.
+Implementa detección de Pan, Tilt, Zoom, Tracking, Dolly, Steadicam y cámara estática
+utilizando el algoritmo Lucas-Kanade para el cálculo de flujo óptico.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - opencv-python: Cálculo de optical flow
+    - numpy: Operaciones con arrays
+    - app.config: Umbrales y configuración
+
+Usage:
+    from app.analysis.camera_movement import CameraMovementAnalyzer
+
+    analyzer = CameraMovementAnalyzer()
+    movement = analyzer.analyze_movement(frame, frame_number)
+
+    if movement["is_moving"]:
+        print(f"Movimiento: {movement['type']} - Intensidad: {movement['intensity']}")
 """
 
 import cv2
 import numpy as np
-from typing import Dict, Optional, Tuple, List
-from enum import Enum
+from typing import Dict, Any, Optional, Tuple, List
 from collections import deque
 
-
-class CameraMovement(Enum):
-    """
-    Enumeración de tipos de movimiento de cámara detectables.
-
-    Define los diferentes movimientos cinematográficos que el sistema
-    puede identificar mediante análisis de flujo óptico.
-    """
-    STATIC = "Estático"
-    PAN_LEFT = "Pan Izquierda"
-    PAN_RIGHT = "Pan Derecha"
-    TILT_UP = "Tilt Arriba"
-    TILT_DOWN = "Tilt Abajo"
-    ZOOM_IN = "Zoom In"
-    ZOOM_OUT = "Zoom Out"
-    TRACKING = "Tracking/Seguimiento"
-    DOLLY_IN = "Dolly In"
-    DOLLY_OUT = "Dolly Out"
-    HANDHELD = "Cámara en Mano"
-    STEADICAM = "Steadicam/Estabilizada"
+from app.config import CAMERA_MOVEMENT_CONFIG
 
 
 class CameraMovementAnalyzer:
     """
-    Analizador de movimientos de cámara mediante flujo óptico.
+    Analizador de movimientos de cámara mediante optical flow.
 
-    Utiliza el algoritmo Lucas-Kanade para detectar puntos característicos
-    y analizar su desplazamiento entre frames consecutivos. Clasifica
-    automáticamente el tipo de movimiento, calcula la intensidad y evalúa
-    la estabilidad de la cámara.
+    Detecta los siguientes tipos de movimiento:
+        - Pan (Left/Right)
+        - Tilt (Up/Down)
+        - Zoom (In/Out)
+        - Tracking/Seguimiento
+        - Dolly (In/Out)
+        - Handheld/Cámara en mano
+        - Steadicam/Estabilizada
+        - Static/Estático
 
     Attributes:
-        prev_frame (Optional[np.ndarray]): Frame anterior almacenado para comparación.
-        prev_gray (Optional[np.ndarray]): Versión en escala de grises del frame anterior.
-        movement_history (deque): Cola de historial de movimientos recientes con
-            tamaño máximo definido en la inicialización.
-        full_timeline (List[Dict]): Lista completa de datos por frame para generación
-            de gráficos temporales.
-        feature_params (Dict): Parámetros para detección de esquinas mediante algoritmo
-            Shi-Tomasi (goodFeaturesToTrack).
-        lk_params (Dict): Parámetros para cálculo de flujo óptico mediante algoritmo
-            Lucas-Kanade piramidal.
+        prev_gray: Frame anterior en escala de grises
+        movement_history: Cola de movimientos recientes
+        full_timeline: Timeline completa para generación de gráficos
+        feature_params: Parámetros para detección de features
+        lk_params: Parámetros para Lucas-Kanade optical flow
     """
 
     def __init__(self, history_size: int = 10):
         """
-        Inicializa el analizador de movimientos de cámara.
-
-        Configura los parámetros para detección de características y cálculo de
-        flujo óptico. Inicializa las estructuras de datos para almacenamiento
-        de historial temporal.
+        Inicializa el analizador de movimiento.
 
         Args:
-            history_size: Tamaño de la ventana de historial para análisis temporal
-                de movimientos. Define cuántos frames recientes se mantienen en
-                memoria para cálculo de estadísticas. Por defecto 10 frames.
+            history_size: Tamaño del historial de movimientos para análisis temporal
         """
-        self.prev_frame = None
         self.prev_gray = None
         self.movement_history = deque(maxlen=history_size)
-        self.full_timeline = []
+        self.full_timeline: List[Dict[str, Any]] = []
 
+        # Parámetros para Shi-Tomasi corner detection
         self.feature_params = dict(
             maxCorners=100,
             qualityLevel=0.3,
             minDistance=7,
             blockSize=7
         )
+
+        # Parámetros para Lucas-Kanade optical flow
         self.lk_params = dict(
             winSize=(15, 15),
             maxLevel=2,
             criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
         )
 
-    def analyze_movement(self, frame: np.ndarray, frame_number: int = 0) -> Dict:
+        # Cargar configuración de umbrales
+        self.motion_threshold = CAMERA_MOVEMENT_CONFIG.get("motion_threshold", 2.0)
+        self.pan_threshold = CAMERA_MOVEMENT_CONFIG.get("pan_threshold", 3.0)
+        self.tilt_threshold = CAMERA_MOVEMENT_CONFIG.get("tilt_threshold", 3.0)
+        self.zoom_threshold = CAMERA_MOVEMENT_CONFIG.get("zoom_threshold", 0.05)
+        self.min_motion_frames = CAMERA_MOVEMENT_CONFIG.get("min_motion_frames", 3)
+
+    def analyze_movement(
+            self,
+            frame: np.ndarray,
+            frame_number: int = 0
+    ) -> Optional[Dict[str, Any]]:
         """
         Analiza el movimiento de cámara entre el frame actual y el anterior.
 
         Args:
-            frame: Frame actual en escala de grises o BGR.
-            frame_number: Número de frame en la secuencia de video.
+            frame: Frame BGR actual a analizar
+            frame_number: Número del frame actual para registro en timeline
 
         Returns:
-            Diccionario con análisis de movimiento.
+            Diccionario con análisis de movimiento o None si ocurre error.
         """
-        # Verificar si ya está en escala de grises
-        if len(frame.shape) == 2:
-            # Ya es grayscale (2D)
-            gray = frame
-        elif len(frame.shape) == 3 and frame.shape[2] == 1:
-            # Ya es grayscale con dimensión extra (H, W, 1)
-            gray = frame.squeeze()
-        elif len(frame.shape) == 3:
-            # Convertir BGR a grayscale (H, W, 3)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            # Caso inesperado
-            raise ValueError(f"Frame con forma inesperada: {frame.shape}")
+        try:
+            # Verificar que el frame no esté vacío
+            if frame is None or frame.size == 0:
+                return self._create_static_result(frame_number)
 
-        if self.prev_gray is None:
-            self.prev_gray = gray
-            return {
-                "movement_type": CameraMovement.STATIC.value,
-                "confidence": 0.0,
-                "motion_vectors": None,
-                "intensity": 0.0
+            # Convertir a escala de grises solo si es necesario
+            if len(frame.shape) == 2:
+                # Ya está en escala de grises
+                gray = frame
+            elif len(frame.shape) == 3 and frame.shape[2] == 3:
+                # Es BGR, convertir a gris
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            else:
+                # Formato no soportado
+                return self._create_static_result(frame_number)
+
+            # Primer frame: guardar y retornar estático
+            if self.prev_gray is None:
+                self.prev_gray = gray
+                return self._create_static_result(frame_number)
+
+            # Calcular optical flow
+            flow_data = self._calculate_optical_flow(gray)
+
+            if flow_data is None or flow_data["points"] == 0:
+                self.prev_gray = gray
+                return self._create_static_result(frame_number)
+
+            # Clasificar tipo de movimiento
+            movement_type, direction, confidence = self._classify_movement(flow_data)
+
+            # Calcular intensidad del movimiento
+            intensity = self._calculate_intensity(flow_data, movement_type)
+
+            # Detectar estabilidad
+            stability_score = self._analyze_stability(flow_data)
+
+            # Construir resultado
+            result = {
+                "type": movement_type,
+                "direction": direction,
+                "magnitude": flow_data["magnitude"],
+                "confidence": confidence,
+                "intensity": intensity,
+                "is_moving": movement_type != "Static",
+                "points_tracked": flow_data["points"],
+                "stability_score": stability_score,
+                "dx": flow_data["avg_dx"],
+                "dy": flow_data["avg_dy"],
+                "scale_change": flow_data.get("scale_change", 1.0)
             }
 
-        flow_data = self._calculate_optical_flow(gray)
-        movement_type, confidence = self._classify_movement(flow_data)
-        stability = self._analyze_stability(flow_data)
-        intensity = self._calculate_intensity(flow_data, movement_type)
+            # Guardar en timeline completa
+            self.full_timeline.append({
+                "frame": frame_number,
+                "type": movement_type,
+                "direction": direction,
+                "intensity": intensity,
+                "magnitude": flow_data["magnitude"]
+            })
 
-        self.full_timeline.append({
-            "frame": frame_number,
-            "type": movement_type.value,
-            "intensity": intensity
-        })
+            # Actualizar historial
+            self.movement_history.append(result)
 
-        self.movement_history.append({
-            "type": movement_type.value,
-            "vectors": flow_data
-        })
+            # Actualizar frame anterior
+            self.prev_gray = gray
 
-        self.prev_gray = gray
+            return result
 
-        return {
-            "movement_type": movement_type.value,
-            "confidence": confidence,
-            "motion_vectors": flow_data,
-            "stability": stability,
-            "is_moving": movement_type != CameraMovement.STATIC,
-            "intensity": intensity
-        }
+        except Exception as e:
+            # En caso de cualquier error, retornar resultado estático
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error en análisis de movimiento frame {frame_number}: {e}")
+            return self._create_static_result(frame_number)
 
-    def _calculate_optical_flow(self, gray: np.ndarray) -> Dict:
+    def _calculate_optical_flow(self, gray: np.ndarray) -> Optional[Dict[str, Any]]:
         """
-        Calcula el flujo óptico entre el frame anterior y el actual.
-
-        Utiliza el algoritmo Lucas-Kanade piramidal para detectar y seguir puntos
-        característicos entre frames consecutivos. Detecta esquinas mediante
-        Shi-Tomasi y calcula estadísticas del movimiento incluyendo dirección,
-        magnitud y cambio de escala entre puntos rastreados.
+        Calcula optical flow mediante Lucas-Kanade entre frames consecutivos.
 
         Args:
-            gray: Frame actual en escala de grises como numpy array 2D.
+            gray: Frame actual en escala de grises
 
         Returns:
-            Diccionario con métricas del flujo óptico:
-                points (int): Número de puntos rastreados exitosamente.
-                avg_dx (float): Desplazamiento promedio horizontal en píxeles.
-                avg_dy (float): Desplazamiento promedio vertical en píxeles.
-                magnitude (float): Magnitud euclidiana del vector de movimiento promedio.
-                angle (float): Ángulo de dirección del movimiento en grados [-180, 180].
-                scale_change (float): Factor de cambio de escala relativo. Valores > 1
-                    indican expansión (zoom in), < 1 contracción (zoom out).
-                vectors (Optional[Tuple]): Tupla con arrays de puntos antiguos y nuevos
-                    para visualización. None si no hay puntos detectados.
-
-        Notes:
-            Utiliza la mediana en lugar de la media para mayor robustez ante outliers.
-            Retorna valores cero si no se detectan suficientes puntos característicos.
+            Diccionario con datos de optical flow o None si ocurre error
         """
+        # Detectar features mediante Shi-Tomasi corner detection
         p0 = cv2.goodFeaturesToTrack(self.prev_gray, mask=None, **self.feature_params)
 
-        if p0 is None:
-            return {
-                "points": 0,
-                "avg_dx": 0,
-                "avg_dy": 0,
-                "magnitude": 0,
-                "angle": 0,
-                "scale_change": 0
-            }
+        if p0 is None or len(p0) == 0:
+            return None
 
+        # Calcular optical flow mediante Lucas-Kanade
         p1, st, err = cv2.calcOpticalFlowPyrLK(
             self.prev_gray, gray, p0, None, **self.lk_params
         )
 
         if p1 is None:
-            return {
-                "points": 0,
-                "avg_dx": 0,
-                "avg_dy": 0,
-                "magnitude": 0,
-                "angle": 0,
-                "scale_change": 0
-            }
+            return None
 
+        # Filtrar puntos correctamente rastreados
         good_new = p1[st == 1]
         good_old = p0[st == 1]
 
         if len(good_new) == 0:
-            return {
-                "points": 0,
-                "avg_dx": 0,
-                "avg_dy": 0,
-                "magnitude": 0,
-                "angle": 0,
-                "scale_change": 0
-            }
+            return None
 
+        # Calcular vectores de movimiento
         dx = good_new[:, 0] - good_old[:, 0]
         dy = good_new[:, 1] - good_old[:, 1]
 
+        # Utilizar mediana para robustez contra outliers
         avg_dx = float(np.median(dx))
         avg_dy = float(np.median(dy))
 
-        magnitude = float(np.sqrt(avg_dx**2 + avg_dy**2))
+        # Magnitud y ángulo del movimiento
+        magnitude = float(np.sqrt(avg_dx ** 2 + avg_dy ** 2))
         angle = float(np.degrees(np.arctan2(avg_dy, avg_dx)))
 
-        distances_old = np.linalg.norm(good_old - np.mean(good_old, axis=0), axis=1)
-        distances_new = np.linalg.norm(good_new - np.mean(good_new, axis=0), axis=1)
+        # Estimación de cambio de escala para detección de zoom
+        try:
+            distances_old = np.linalg.norm(
+                good_old - np.mean(good_old, axis=0), axis=1
+            )
+            distances_new = np.linalg.norm(
+                good_new - np.mean(good_new, axis=0), axis=1
+            )
 
-        scale_change = float(np.median(distances_new / (distances_old + 1e-6)))
+            # Protección contra división por cero
+            valid_mask = distances_old > 1e-6
+            if np.sum(valid_mask) > 0:
+                scale_change = float(np.median(distances_new[valid_mask] / distances_old[valid_mask]))
+            else:
+                scale_change = 1.0
+        except Exception:
+            scale_change = 1.0
 
         return {
             "points": len(good_new),
@@ -243,319 +250,273 @@ class CameraMovementAnalyzer:
             "vectors": (good_old, good_new)
         }
 
-    def _classify_movement(self, flow_data: Dict) -> Tuple[CameraMovement, float]:
+    def _classify_movement(
+        self,
+        flow_data: Dict[str, Any]
+    ) -> Tuple[str, str, float]:
         """
-        Clasifica el tipo de movimiento de cámara según datos de flujo óptico.
-
-        Analiza la magnitud, dirección y cambio de escala del flujo para determinar
-        el tipo de movimiento cinematográfico. Calcula nivel de confianza basado en
-        coherencia de vectores y número de puntos rastreados.
+        Clasifica el tipo de movimiento de cámara basándose en optical flow.
 
         Args:
-            flow_data: Diccionario con datos de flujo óptico calculados previamente
-                por _calculate_optical_flow.
+            flow_data: Datos de optical flow calculados
 
         Returns:
-            Tupla con dos elementos:
-                - CameraMovement: Enum del tipo de movimiento clasificado.
-                - float: Nivel de confianza de la clasificación en rango [0.0, 1.0].
+            Tupla de (tipo, dirección, confianza)
 
         Notes:
-            Umbrales de clasificación:
-                - Magnitud < 2: Movimiento estático
-                - Magnitud >= 2 con análisis direccional:
-                    * Pan: Predominancia horizontal (abs(dx) > 2 * abs(dy))
-                    * Tilt: Predominancia vertical (abs(dy) > 2 * abs(dx))
-                    * Zoom: Cambio de escala significativo (>1.05 o <0.95)
-                    * Tracking: Movimiento complejo sin predominancia clara
-            La confianza depende del número de puntos rastreados y magnitud del movimiento.
+            La confianza se calcula en función del número de puntos rastreados.
+            Los umbrales son configurables mediante app.config.
+            Orden de prioridad: Zoom > Pan/Tilt > Static
         """
         magnitude = flow_data["magnitude"]
         dx = flow_data["avg_dx"]
         dy = flow_data["avg_dy"]
         scale = flow_data["scale_change"]
+        points = flow_data["points"]
 
-        static_threshold = 2
-        zoom_threshold = 0.05
+        # Calcular confianza basada en puntos rastreados
+        confidence = min(points / 50.0, 1.0)
 
-        if magnitude < static_threshold:
-            return CameraMovement.STATIC, 1.0
+        # Movimiento muy pequeño se considera estático
+        if magnitude < self.motion_threshold:
+            return "Static", "", confidence
 
-        if abs(dx) > abs(dy) * 2:
-            movement = CameraMovement.PAN_RIGHT if dx > 0 else CameraMovement.PAN_LEFT
-        elif abs(dy) > abs(dx) * 2:
-            movement = CameraMovement.TILT_DOWN if dy > 0 else CameraMovement.TILT_UP
-        elif scale > (1.0 + zoom_threshold):
-            movement = CameraMovement.ZOOM_IN
-        elif scale < (1.0 - zoom_threshold):
-            movement = CameraMovement.ZOOM_OUT
-        else:
-            movement = CameraMovement.TRACKING
+        # Detectar zoom mediante cambio de escala significativo
+        if abs(scale - 1.0) > self.zoom_threshold:
+            if scale > 1.0:
+                return "Zoom", "In", confidence
+            else:
+                return "Zoom", "Out", confidence
 
-        confidence = min(1.0, (flow_data["points"] / 50) * (magnitude / 10))
-        confidence = max(0.3, min(confidence, 1.0))
+        # Detectar pan mediante movimiento horizontal dominante
+        if abs(dx) > self.pan_threshold and abs(dx) > abs(dy):
+            if dx > 0:
+                return "Pan", "Right", confidence
+            else:
+                return "Pan", "Left", confidence
 
-        return movement, round(confidence, 2)
+        # Detectar tilt mediante movimiento vertical dominante
+        if abs(dy) > self.tilt_threshold and abs(dy) > abs(dx):
+            if dy > 0:
+                return "Tilt", "Down", confidence
+            else:
+                return "Tilt", "Up", confidence
 
-    def _calculate_intensity(self, flow_data: Dict, movement_type: CameraMovement) -> float:
+        # Movimiento mixto o tracking
+        if magnitude > self.motion_threshold * 2:
+            return "Tracking", "Mixed", confidence
+
+        return "Static", "", confidence
+
+    def _calculate_intensity(
+        self,
+        flow_data: Dict[str, Any],
+        movement_type: str
+    ) -> float:
         """
-        Calcula la intensidad normalizada del movimiento de cámara.
-
-        Escala la magnitud del movimiento a un rango [0, 100] donde valores altos
-        indican movimientos rápidos o pronunciados. Para zooms, incorpora también
-        el factor de cambio de escala en el cálculo.
+        Calcula intensidad normalizada del movimiento en escala 0-100.
 
         Args:
-            flow_data: Diccionario con datos del flujo óptico.
-            movement_type: Tipo de movimiento clasificado previamente.
+            flow_data: Datos de optical flow
+            movement_type: Tipo de movimiento detectado
 
         Returns:
-            Intensidad del movimiento en escala [0.0, 100.0] redondeada a un decimal.
+            Intensidad normalizada entre 0 y 100
 
         Notes:
-            Fórmula base: intensity = (magnitude / 20.0) * 100
-            Para zooms se añade: scale_contribution = abs(scale_change - 1.0) * 200
-            La intensidad se limita al máximo de 100.0.
+            0 = Sin movimiento
+            50 = Movimiento moderado
+            100 = Movimiento muy intenso
         """
-        if movement_type == CameraMovement.STATIC:
+        if movement_type == "Static":
             return 0.0
 
         magnitude = flow_data["magnitude"]
-        scale_change = abs(flow_data["scale_change"] - 1.0)
 
-        intensity = min(100.0, (magnitude / 20.0) * 100)
-
-        if movement_type in [CameraMovement.ZOOM_IN, CameraMovement.ZOOM_OUT]:
-            intensity = min(100.0, intensity + (scale_change * 200))
+        # Normalizar a escala 0-100 asumiendo magnitud 20 como movimiento muy intenso
+        intensity = min((magnitude / 20.0) * 100, 100.0)
 
         return round(intensity, 1)
 
-    def _analyze_stability(self, flow_data: Dict) -> Dict:
+    def _analyze_stability(self, flow_data: Dict[str, Any]) -> float:
         """
-        Analiza la estabilidad de la cámara mediante varianza del movimiento.
-
-        Evalúa la consistencia del flujo óptico calculando la varianza de los vectores
-        de desplazamiento. Una varianza baja indica movimientos uniformes y estables
-        (steadicam, trípode), mientras que varianza alta sugiere movimiento irregular
-        (cámara en mano, handheld).
+        Analiza estabilidad de la cámara diferenciando handheld de steadicam.
 
         Args:
-            flow_data: Diccionario con datos del flujo óptico incluyendo vectores
-                de puntos rastreados.
+            flow_data: Datos de optical flow
 
         Returns:
-            Diccionario con análisis de estabilidad:
-                is_stable (bool): True si la cámara está estabilizada según umbral.
-                shake_level (float): Nivel de temblor normalizado en rango [0.0, 1.0]
-                    donde 0.0 es perfectamente estable y 1.0 es muy inestable.
-                variance (float): Varianza total del movimiento (suma de varianzas
-                    en ejes X e Y).
-                camera_style (str): Estilo de cámara detectado, valores posibles:
-                    'Steadicam/Estabilizada' o 'Cámara en Mano'.
+            Score de estabilidad entre 0 y 100, donde 100 representa máxima estabilidad
 
         Notes:
-            Umbrales de varianza para clasificación:
-                - Varianza < 2: Steadicam (shake_level=0.0, stable=True)
-                - Varianza < 5: Estable (shake_level=0.3, stable=True)
-                - Varianza < 15: Handheld moderado (shake_level=0.6, stable=False)
-                - Varianza >= 15: Handheld pronunciado (shake_level=1.0, stable=False)
+            El cálculo se basa en la varianza de los vectores de movimiento.
+            Alta varianza indica cámara en mano (inestable).
+            Baja varianza indica steadicam (estable).
         """
-        if "vectors" not in flow_data or flow_data["vectors"] is None:
-            return {
-                "is_stable": True,
-                "shake_level": 0.0,
-                "camera_style": CameraMovement.STATIC.value
-            }
+        if "vectors" not in flow_data:
+            return 50.0
 
         good_old, good_new = flow_data["vectors"]
 
-        dx = good_new[:, 0] - good_old[:, 0]
-        dy = good_new[:, 1] - good_old[:, 1]
+        # Calcular vectores de movimiento
+        motion_vectors = good_new - good_old
 
-        variance_x = float(np.var(dx))
-        variance_y = float(np.var(dy))
-        total_variance = variance_x + variance_y
+        # Varianza de los vectores
+        variance = float(np.var(motion_vectors))
 
-        if total_variance < 2:
-            shake_level = 0.0
-            is_stable = True
-            camera_style = CameraMovement.STEADICAM
-        elif total_variance < 5:
-            shake_level = 0.3
-            is_stable = True
-            camera_style = CameraMovement.STEADICAM
-        elif total_variance < 15:
-            shake_level = 0.6
-            is_stable = False
-            camera_style = CameraMovement.HANDHELD
-        else:
-            shake_level = 1.0
-            is_stable = False
-            camera_style = CameraMovement.HANDHELD
+        # Normalizar a escala 0-100 invertida
+        stability = max(0, 100 - (variance * 10))
 
-        return {
-            "is_stable": is_stable,
-            "shake_level": round(shake_level, 2),
-            "variance": round(total_variance, 2),
-            "camera_style": camera_style.value
-        }
+        return round(min(stability, 100.0), 1)
 
-    def get_movement_summary(self) -> Dict:
+    def _create_static_result(self, frame_number: int) -> Dict[str, Any]:
         """
-        Genera un resumen estadístico de los movimientos detectados.
+        Crea resultado para frame estático sin movimiento.
 
-        Analiza el historial de movimientos para determinar patrones predominantes
-        y calcular la distribución porcentual de cada tipo de movimiento en la ventana
-        temporal definida por history_size.
+        Args:
+            frame_number: Número del frame actual
 
         Returns:
-            Diccionario con resumen estadístico:
-                total_frames (int): Total de frames analizados en el historial.
-                predominant_movement (str): Tipo de movimiento más frecuente.
-                most_common (str): Alias de predominant_movement para compatibilidad.
-                distribution (Dict[str, float]): Diccionario con distribución porcentual
-                    de cada tipo de movimiento detectado, donde las claves son los
-                    nombres de movimientos y los valores son porcentajes redondeados
-                    a un decimal.
+            Diccionario de resultado estático
+        """
+        result = {
+            "type": "Static",
+            "direction": "",
+            "magnitude": 0.0,
+            "confidence": 1.0,
+            "intensity": 0.0,
+            "is_moving": False,
+            "points_tracked": 0,
+            "stability_score": 100.0,
+            "dx": 0.0,
+            "dy": 0.0,
+            "scale_change": 1.0
+        }
+
+        # Guardar en timeline
+        self.full_timeline.append({
+            "frame": frame_number,
+            "type": "Static",
+            "direction": "",
+            "intensity": 0.0,
+            "magnitude": 0.0
+        })
+
+        return result
+
+    def get_movement_summary(self) -> Dict[str, Any]:
+        """
+        Obtiene resumen estadístico de movimientos detectados durante el análisis completo.
+
+        Returns:
+            Diccionario con estadísticas de movimiento:
+                - total_frames: Total de frames analizados
+                - movement_counts: Conteo por tipo de movimiento
+                - avg_intensity: Intensidad promedio
+                - timeline: Timeline completa para generación de gráficos
 
         Notes:
-            Si el historial está vacío, retorna valores por defecto con movimiento
-            STATIC y distribución vacía.
+            La timeline puede utilizarse para generación de visualizaciones temporales.
         """
-        if not self.movement_history:
+        if not self.full_timeline:
             return {
                 "total_frames": 0,
-                "predominant_movement": CameraMovement.STATIC.value,
-                "most_common": CameraMovement.STATIC.value,
-                "distribution": {}
+                "movement_counts": {},
+                "avg_intensity": 0.0,
+                "timeline": []
             }
 
+        # Contar tipos de movimiento
         movement_counts = {}
-        for entry in self.movement_history:
+        total_intensity = 0.0
+
+        for entry in self.full_timeline:
             mov_type = entry["type"]
             movement_counts[mov_type] = movement_counts.get(mov_type, 0) + 1
-
-        total = len(self.movement_history)
-        movement_distribution = {
-            k: round(v / total * 100, 1)
-            for k, v in movement_counts.items()
-        }
-
-        predominant = max(movement_counts.items(), key=lambda x: x[1])[0]
+            total_intensity += entry["intensity"]
 
         return {
-            "total_frames": total,
-            "predominant_movement": predominant,
-            "most_common": predominant,
-            "distribution": movement_distribution
+            "total_frames": len(self.full_timeline),
+            "movement_counts": movement_counts,
+            "avg_intensity": round(total_intensity / len(self.full_timeline), 2),
+            "timeline": self.full_timeline
         }
 
-    def get_timeline_data(self) -> List[Dict]:
-        """
-        Obtiene la timeline completa de movimientos para visualización.
-
-        Retorna todos los datos de análisis de cada frame procesado desde la
-        inicialización del analizador. Útil para generar gráficos temporales
-        de movimiento y análisis post-procesamiento.
-
-        Returns:
-            Lista de diccionarios con datos por frame, cada elemento contiene:
-                frame (int): Número de frame en la secuencia.
-                type (str): Tipo de movimiento detectado.
-                intensity (float): Intensidad del movimiento en escala [0, 100].
-
-        Notes:
-            A diferencia de movement_history que tiene tamaño limitado, full_timeline
-            mantiene datos de todos los frames procesados hasta que se llame a reset().
-        """
-        return self.full_timeline
-
     def reset(self):
-        """
-        Reinicia el estado interno del analizador.
-
-        Limpia todas las estructuras de datos temporales incluyendo historial de
-        movimientos, timeline completa y frames almacenados. Útil para comenzar
-        el análisis de un nuevo video sin necesidad de crear una nueva instancia
-        del analizador, manteniendo la configuración de parámetros.
-
-        Notes:
-            Después de llamar a reset(), el próximo frame procesado será tratado
-            como el primer frame de una nueva secuencia (sin frame anterior para
-            comparación).
-        """
+        """Reinicia el analizador para procesar un nuevo vídeo."""
         self.prev_gray = None
         self.movement_history.clear()
         self.full_timeline.clear()
 
 
-def visualize_camera_movement(frame: np.ndarray, movement_info: Dict,
-                              flow_data: Dict = None) -> np.ndarray:
+def visualize_camera_movement(
+    frame: np.ndarray,
+    movement: Dict[str, Any]
+) -> np.ndarray:
     """
-    Visualiza el movimiento de cámara detectado mediante overlay gráfico en el frame.
-
-    Renderiza información textual del tipo de movimiento y estilo de cámara en la
-    esquina inferior izquierda del frame, con fondo negro semi-transparente para
-    mejorar legibilidad. Opcionalmente dibuja vectores de flujo óptico si los datos
-    están disponibles.
+    Visualiza información de movimiento de cámara sobre el frame.
 
     Args:
-        frame: Frame de video en formato BGR (numpy array con dimensiones H x W x 3)
-            sobre el cual se aplicará el overlay de visualización.
-        movement_info: Diccionario con información del movimiento detectado, típicamente
-            el resultado retornado por el método analyze_movement(). Debe contener al
-            menos la clave 'movement_type'. Opcionalmente puede incluir 'stability' con
-            información de estilo de cámara.
-        flow_data: Diccionario opcional con datos de flujo óptico para visualizar
-            vectores de movimiento. Si se proporciona y contiene la clave 'vectors',
-            se dibujarán líneas verdes representando el flujo y círculos rojos en
-            las posiciones finales de los puntos rastreados.
+        frame: Frame BGR
+        movement: Diccionario con análisis de movimiento
 
     Returns:
-        Frame modificado con overlay de visualización aplicado. El array original
-        es modificado in-place y también retornado.
-
-    Notes:
-        Los vectores de flujo se muestrean cada 20 puntos para evitar saturación
-        visual en el frame. La visualización consiste en:
-            - Líneas verdes: Trayectoria del movimiento de cada punto
-            - Círculos rojos: Posición final de los puntos rastreados
-            - Texto con fondo negro: Tipo de movimiento y estilo de cámara
+        Frame con visualización de movimiento superpuesta
     """
-    h, w = frame.shape[:2]
+    frame_copy = frame.copy()
+    h, w = frame_copy.shape[:2]
 
-    text = f"Movimiento: {movement_info['movement_type']}"
-    if movement_info.get('stability'):
-        text += f" | Estabilidad: {movement_info['stability']['camera_style']}"
-
-    position = (20, h - 30)
+    # Configuración de visualización
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.7
     thickness = 2
+    padding = 10
 
-    (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
-    cv2.rectangle(
-        frame,
-        (position[0] - 5, position[1] - text_h - 5),
-        (position[0] + text_w + 5, position[1] + baseline + 5),
-        (0, 0, 0),
-        -1
-    )
+    # Color según tipo de movimiento
+    if movement["is_moving"]:
+        color = (0, 255, 0)
+    else:
+        color = (200, 200, 200)
 
-    cv2.putText(
-        frame, text, position, font, font_scale,
-        (0, 255, 0), thickness
-    )
+    # Construir texto de información
+    movement_text = f"{movement['type']}"
+    if movement['direction']:
+        movement_text += f" {movement['direction']}"
 
-    if flow_data and "vectors" in flow_data and flow_data["vectors"] is not None:
-        good_old, good_new = flow_data["vectors"]
+    info_lines = [
+        movement_text,
+        f"Intensity: {movement['intensity']:.1f}",
+        f"Confidence: {movement['confidence']:.2f}"
+    ]
 
-        step = max(1, len(good_old) // 20)
-        for i in range(0, len(good_old), step):
-            old_pt = tuple(good_old[i].astype(int))
-            new_pt = tuple(good_new[i].astype(int))
+    # Dibujar fondo semi-transparente
+    overlay = frame_copy.copy()
+    y_offset = padding
+    for line in info_lines:
+        text_size = cv2.getTextSize(line, font, font_scale, thickness)[0]
+        cv2.rectangle(
+            overlay,
+            (padding, y_offset),
+            (padding + text_size[0] + padding, y_offset + text_size[1] + padding),
+            (0, 0, 0),
+            -1
+        )
+        y_offset += text_size[1] + padding * 2
 
-            cv2.line(frame, old_pt, new_pt, (0, 255, 0), 1)
-            cv2.circle(frame, new_pt, 3, (0, 0, 255), -1)
+    cv2.addWeighted(overlay, 0.7, frame_copy, 0.3, 0, frame_copy)
 
-    return frame
+    # Dibujar texto
+    y_offset = padding + 20
+    for line in info_lines:
+        cv2.putText(
+            frame_copy,
+            line,
+            (padding * 2, y_offset),
+            font,
+            font_scale,
+            color,
+            thickness
+        )
+        y_offset += 30
+
+    return frame_copy

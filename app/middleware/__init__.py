@@ -1,7 +1,5 @@
 """
-==============================================================================
 Middleware Module - Middleware de CVFlix
-==============================================================================
 
 Capa de middleware para aplicación FastAPI que proporciona manejo centralizado
 de errores, logging de requests y gestión de excepciones HTTP.
@@ -13,7 +11,7 @@ Version: 4.0.0
 
 Modules:
     error_handler: Sistema centralizado de captura y manejo de excepciones
-        con logging estructurado y respuestas HTTP estandarizadas.
+        con logging estructurado y respuestas HTTP estandarizadas
 
 Usage:
     from fastapi import FastAPI
@@ -25,8 +23,6 @@ Usage:
 Notes:
     El middleware se carga condicionalmente para manejo robusto de dependencias.
     Si faltan componentes, la aplicación continúa funcionando sin middleware.
-
-==============================================================================
 """
 
 from typing import Optional
@@ -38,7 +34,6 @@ __author__ = "César Sánchez Montes"
 
 logger = logging.getLogger(__name__)
 
-# Importación condicional de componentes de manejo de errores
 try:
     from .error_handler import (
         ErrorHandlerMiddleware,
@@ -53,7 +48,6 @@ except ImportError as e:
     ERROR_HANDLER_AVAILABLE = False
     logger.warning(f"Error handler not available: {e}")
 
-# API pública del módulo
 __all__ = [
     "ErrorHandlerMiddleware",
     "validation_exception_handler",
@@ -73,19 +67,14 @@ def setup_middleware(app: FastAPI, enable_error_handlers: bool = True):
     personalizados para validación, errores HTTP y excepciones generales.
 
     Args:
-        app: Instancia de FastAPI donde registrar middleware.
+        app: Instancia de FastAPI donde registrar middleware
         enable_error_handlers: Flag para activar/desactivar manejadores de error.
-            Por defecto True. Útil para deshabilitar en testing.
-
-    Example:
-        >>> app = FastAPI()
-        >>> setup_middleware(app)
-        >>> # Middleware configurado automáticamente
+            Por defecto True. Útil para deshabilitar en testing
 
     Notes:
         El middleware se registra en el siguiente orden:
             1. ErrorHandlerMiddleware - Captura excepciones no manejadas
-            2. Exception handlers específicos - Validan, HTTP, generales
+            2. Exception handlers específicos - Validación, HTTP, generales
 
         Si ERROR_HANDLER_AVAILABLE es False, la configuración se omite sin
         generar error, permitiendo arranque degradado de la aplicación.
@@ -110,9 +99,9 @@ def get_middleware_info() -> dict:
 
     Returns:
         Diccionario con estado de componentes de middleware:
-            version (str): Versión del módulo middleware.
-            error_handler_available (bool): Disponibilidad del sistema de
-                manejo de errores.
+            version: Versión del módulo middleware
+            error_handler_available: Disponibilidad del sistema de
+                manejo de errores
 
     Notes:
         Útil para diagnóstico de dependencias y verificación de configuración

@@ -2,12 +2,27 @@
 color_analyzer.py
 
 Módulo para análisis de colores dominantes, temperatura cromática y esquemas
-de color en frames de video mediante clustering K-means y análisis HSV.
+de color en frames de vídeo mediante clustering K-means y análisis HSV.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - opencv-python: Procesamiento de imágenes y clustering K-means
+    - numpy: Operaciones con arrays
+    - webcolors: Conversión y nombres de colores CSS3
+    - matplotlib: Generación de gráficos de histogramas
+
+Usage:
+    from app.analysis.color_analyzer import ColorAnalyzer
+
+    analyzer = ColorAnalyzer()
+    colors = analyzer.analyze_colors(frame, n_colors=5)
+
+    print(f"Temperatura: {colors['temperature']['label']}")
+    print(f"Esquema: {colors['color_scheme']['scheme']}")
 """
 
 import cv2
@@ -24,7 +39,7 @@ import matplotlib.pyplot as plt
 
 class ColorAnalyzer:
     """
-    Analizador de colores en frames de video.
+    Analizador de colores en frames de vídeo.
 
     Realiza análisis cromático mediante clustering K-means para extraer colores
     dominantes, evalúa temperatura de color basándose en balance RGB, clasifica
@@ -32,12 +47,12 @@ class ColorAnalyzer:
     para visualización estadística.
 
     Attributes:
-        hist_r_accumulated (np.ndarray): Array acumulador de histograma del canal rojo
-            con 256 bins correspondientes a niveles de intensidad [0-255].
-        hist_g_accumulated (np.ndarray): Array acumulador de histograma del canal verde.
-        hist_b_accumulated (np.ndarray): Array acumulador de histograma del canal azul.
-        frames_count (int): Contador de frames procesados para normalización de
-            histogramas acumulados.
+        hist_r_accumulated: Array acumulador de histograma del canal rojo
+            con 256 bins correspondientes a niveles de intensidad [0-255]
+        hist_g_accumulated: Array acumulador de histograma del canal verde
+        hist_b_accumulated: Array acumulador de histograma del canal azul
+        frames_count: Contador de frames procesados para normalización de
+            histogramas acumulados
     """
 
     def __init__(self):
@@ -62,20 +77,20 @@ class ColorAnalyzer:
         rendimiento del clustering.
 
         Args:
-            frame: Frame a analizar en formato BGR (OpenCV estándar) como numpy
-                array con dimensiones (H, W, 3).
+            frame: Frame a analizar en formato BGR como numpy array con
+                dimensiones (H, W, 3)
             n_colors: Número de colores dominantes a extraer mediante K-means
-                clustering. Por defecto 5 colores.
+                clustering. Por defecto 5 colores
 
         Returns:
             Diccionario con análisis completo de colores:
-                dominant_colors (List[Dict]): Lista de colores dominantes ordenados
-                    por frecuencia de aparición, donde cada elemento contiene RGB,
-                    hex, porcentaje y nombre del color.
-                temperature (Dict): Análisis de temperatura cromática con label
-                    descriptivo y valor numérico normalizado.
-                color_scheme (Dict): Clasificación del esquema cromático con nombre,
-                    descripción y diferencia angular máxima de matices.
+                dominant_colors: Lista de colores dominantes ordenados por
+                    frecuencia de aparición, donde cada elemento contiene RGB,
+                    hex, porcentaje y nombre del color
+                temperature: Análisis de temperatura cromática con label
+                    descriptivo y valor numérico normalizado
+                color_scheme: Clasificación del esquema cromático con nombre,
+                    descripción y diferencia angular máxima de matices
 
         Notes:
             El frame se redimensiona a 150x150 píxeles antes del análisis para
@@ -101,27 +116,27 @@ class ColorAnalyzer:
 
         Aplica algoritmo K-means sobre el espacio de píxeles RGB para identificar
         clusters de colores similares. Ordena los colores por frecuencia de aparición
-        y los convierte a múltiples representaciones (RGB, hex, nombre CSS3).
+        y los convierte a múltiples representaciones.
 
         Args:
-            frame_rgb: Frame en formato RGB como numpy array con dimensiones (H, W, 3).
-            n_colors: Número de clusters K para el algoritmo K-means, determina cuántos
-                colores dominantes se extraerán.
+            frame_rgb: Frame en formato RGB como numpy array con dimensiones (H, W, 3)
+            n_colors: Número de clusters K para el algoritmo K-means, determina
+                cuántos colores dominantes se extraerán
 
         Returns:
             Lista de diccionarios ordenada por frecuencia descendente, donde cada
             elemento contiene:
-                rgb (List[int]): Valores RGB como lista [R, G, B] en rango [0, 255].
-                hex (str): Representación hexadecimal del color en formato "#RRGGBB".
-                percentage (float): Porcentaje de píxeles del frame que pertenecen
-                    a este cluster, redondeado a 2 decimales.
-                name (str): Nombre del color más cercano según especificación CSS3,
-                    capitalizado.
+                rgb: Valores RGB como lista [R, G, B] en rango [0, 255]
+                hex: Representación hexadecimal del color en formato "#RRGGBB"
+                percentage: Porcentaje de píxeles del frame que pertenecen
+                    a este cluster, redondeado a 2 decimales
+                name: Nombre del color más cercano según especificación CSS3,
+                    capitalizado
 
         Notes:
             Configuración K-means:
                 - Criterio de parada: 100 iteraciones máximo o epsilon 0.2
-                - Inicialización: KMEANS_PP_CENTERS (K-means++)
+                - Inicialización: KMEANS_PP_CENTERS
                 - Repeticiones: 10 intentos para encontrar mejor clustering
         """
         pixels = frame_rgb.reshape(-1, 3)
@@ -162,27 +177,26 @@ class ColorAnalyzer:
 
         Args:
             rgb: Array numpy con valores RGB en formato [R, G, B] donde cada
-                componente está en rango [0, 255].
+                componente está en rango [0, 255]
 
         Returns:
-            Nombre del color en formato capitalizado (primera letra mayúscula).
+            Nombre del color en formato capitalizado.
             Retorna "Unknown" si no se puede determinar el nombre.
 
         Notes:
             Utiliza distancia euclidiana en espacio RGB:
                 distance = sqrt((R1-R2)² + (G1-G2)² + (B1-B2)²)
-            Compatible con webcolors versión 24.x mediante uso de names() function.
+            Compatible con webcolors mediante uso de CSS3_NAMES_TO_HEX.
         """
         try:
             color_name = webcolors.rgb_to_name(tuple(rgb), spec='css3')
         except ValueError:
             min_distance = float('inf')
             closest_name = "Unknown"
-            css3_names = webcolors.names('css3')
 
-            for name in css3_names:
+            for name, hex_value in webcolors.CSS3_NAMES_TO_HEX.items():
                 try:
-                    ref_rgb = webcolors.name_to_rgb(name)
+                    ref_rgb = webcolors.hex_to_rgb(hex_value)
                     distance = np.sqrt(np.sum((np.array(rgb) - np.array(ref_rgb)) ** 2))
                     if distance < min_distance:
                         min_distance = distance
@@ -204,16 +218,15 @@ class ColorAnalyzer:
         temperatura.
 
         Args:
-            colors: Lista de colores dominantes con información RGB y porcentaje,
-                típicamente el resultado de _extract_dominant_colors().
+            colors: Lista de colores dominantes con información RGB y porcentaje
 
         Returns:
             Diccionario con análisis de temperatura:
-                label (str): Clasificación textual de temperatura. Valores posibles:
-                    "Muy Cálido", "Cálido", "Neutral", "Frío", "Muy Frío".
-                value (float): Score numérico de temperatura en rango aproximado
-                    [-1.0, 1.0] donde valores positivos indican calidez (tonos rojos)
-                    y negativos frialdad (tonos azules). Redondeado a 3 decimales.
+                label: Clasificación textual de temperatura. Valores posibles:
+                    "Muy Cálido", "Cálido", "Neutral", "Frío", "Muy Frío"
+                value: Score numérico de temperatura en rango aproximado
+                    [-1.0, 1.0] donde valores positivos indican calidez y
+                    negativos frialdad. Redondeado a 3 decimales
 
         Notes:
             Fórmula de temperatura por color:
@@ -271,18 +284,17 @@ class ColorAnalyzer:
         color basándose en la máxima diferencia angular encontrada.
 
         Args:
-            colors: Lista de colores dominantes con información RGB, típicamente
-                el resultado de _extract_dominant_colors().
+            colors: Lista de colores dominantes con información RGB
 
         Returns:
             Diccionario con análisis de esquema cromático:
-                scheme (str): Clasificación del esquema. Valores posibles:
+                scheme: Clasificación del esquema. Valores posibles:
                     "Monocromático", "Análogo", "Complementario", "Triádico",
-                    "Policromático".
-                description (str): Descripción textual del esquema cromático.
-                max_hue_difference (float): Diferencia angular máxima de matiz
+                    "Policromático"
+                description: Descripción textual del esquema cromático
+                max_hue_difference: Diferencia angular máxima de matiz
                     encontrada entre colores, en grados [0-180], redondeada a
-                    1 decimal.
+                    1 decimal
 
         Notes:
             Umbrales de clasificación basados en diferencia angular de matiz:
@@ -346,8 +358,7 @@ class ColorAnalyzer:
         normalización.
 
         Args:
-            frame: Frame en formato BGR (OpenCV estándar) como numpy array con
-                dimensiones (H, W, 3).
+            frame: Frame en formato BGR como numpy array con dimensiones (H, W, 3)
 
         Notes:
             Los histogramas se calculan con:
@@ -355,7 +366,7 @@ class ColorAnalyzer:
                 - Rango completo: [0, 256) para cada canal
                 - Sin máscara: considera todos los píxeles del frame
 
-            Los acumuladores permiten generar histograma promedio del video completo
+            Los acumuladores permiten generar histograma promedio del vídeo completo
             mediante normalización por frames_count.
         """
         hist_b = cv2.calcHist([frame], [0], None, [256], [0, 256]).flatten()
@@ -372,11 +383,11 @@ class ColorAnalyzer:
         Reinicia acumuladores de histograma y contador de frames.
 
         Limpia todos los arrays acumuladores estableciéndolos a cero y resetea
-        el contador de frames. Útil para comenzar análisis de un nuevo video
+        el contador de frames. Permite comenzar análisis de un nuevo vídeo
         sin crear nueva instancia del analizador.
 
         Notes:
-            Después de llamar a reset_histogram(), el próximo frame procesado
+            Después de llamar a reset_histogram, el próximo frame procesado
             iniciará un nuevo ciclo de acumulación desde cero.
         """
         self.hist_r_accumulated = np.zeros(256)

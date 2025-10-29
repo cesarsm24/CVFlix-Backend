@@ -8,6 +8,17 @@ Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - fastapi: Framework web y excepciones HTTP
+    - starlette: Excepciones base de Starlette
+
+Usage:
+    from fastapi import FastAPI
+    from app.middleware.error_handler import setup_error_handlers
+
+    app = FastAPI()
+    setup_error_handlers(app)
 """
 
 import logging
@@ -31,7 +42,7 @@ class ErrorHandlerMiddleware:
     X-Process-Time a todas las respuestas.
 
     Attributes:
-        app: Aplicación ASGI envuelta por el middleware.
+        app: Aplicación ASGI envuelta por el middleware
 
     Notes:
         Implementa protocolo ASGI completo mediante __call__ con scope, receive
@@ -44,7 +55,7 @@ class ErrorHandlerMiddleware:
         Inicializa middleware envolviendo aplicación ASGI.
 
         Args:
-            app: Aplicación ASGI (típicamente instancia FastAPI) a envolver.
+            app: Aplicación ASGI (típicamente instancia FastAPI) a envolver
         """
         self.app = app
 
@@ -53,9 +64,9 @@ class ErrorHandlerMiddleware:
         Procesa request ASGI con manejo de errores y medición de tiempo.
 
         Args:
-            scope: Diccionario con información del request (tipo, path, headers).
-            receive: Callable asíncrono para recibir eventos del cliente.
-            send: Callable asíncrono para enviar eventos al cliente.
+            scope: Diccionario con información del request (tipo, path, headers)
+            receive: Callable asíncrono para recibir eventos del cliente
+            send: Callable asíncrono para enviar eventos al cliente
 
         Notes:
             Pipeline de procesamiento:
@@ -108,15 +119,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     Maneja errores de validación de Pydantic en request bodies y parámetros.
 
     Args:
-        request: Objeto Request de FastAPI con información del request.
-        exc: Excepción RequestValidationError conteniendo detalles de validación.
+        request: Objeto Request de FastAPI con información del request
+        exc: Excepción RequestValidationError conteniendo detalles de validación
 
     Returns:
-        JSONResponse con código 422 y detalles estructurados de errores de validación.
+        JSONResponse con código 422 y detalles estructurados de errores de validación
 
     Notes:
         Transforma los errores de Pydantic en formato amigable:
-            - field: Path del campo con error (e.g., "body.email")
+            - field: Path del campo con error
             - message: Mensaje descriptivo del error
             - type: Tipo de error de validación de Pydantic
 
@@ -152,11 +163,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     Maneja excepciones HTTP estándar lanzadas explícitamente en el código.
 
     Args:
-        request: Objeto Request de FastAPI.
-        exc: Excepción HTTPException con status_code y detail.
+        request: Objeto Request de FastAPI
+        exc: Excepción HTTPException con status_code y detail
 
     Returns:
-        JSONResponse con código de estado de la excepción y mensaje formateado.
+        JSONResponse con código de estado de la excepción y mensaje formateado
 
     Notes:
         Maneja excepciones lanzadas con raise HTTPException(), típicamente:
@@ -189,11 +200,11 @@ async def general_exception_handler(request: Request, exc: Exception):
     Maneja cualquier excepción no capturada por handlers específicos.
 
     Args:
-        request: Objeto Request de FastAPI.
-        exc: Excepción de tipo genérico Exception.
+        request: Objeto Request de FastAPI
+        exc: Excepción de tipo genérico Exception
 
     Returns:
-        JSONResponse con error 500 y mensaje genérico. Detalles solo en modo debug.
+        JSONResponse con error 500 y mensaje genérico. Detalles solo en modo debug
 
     Notes:
         Handler de último recurso para excepciones inesperadas que escaparon
@@ -230,7 +241,7 @@ def setup_error_handlers(app):
     Registra todos los exception handlers en la aplicación FastAPI.
 
     Args:
-        app: Instancia de FastAPI donde registrar los handlers.
+        app: Instancia de FastAPI donde registrar los handlers
 
     Notes:
         Orden de registro es importante: handlers más específicos primero.

@@ -598,7 +598,7 @@ main() {
     install_dependencies
     verify_installation
     configure_app
-
+s
     print_header "✅ Instalación Completada"
 
     echo -e "${GREEN}Todo listo para ejecutar CVFlix${NC}\n"

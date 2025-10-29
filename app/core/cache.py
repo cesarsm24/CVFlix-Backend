@@ -2,13 +2,32 @@
 cache.py
 
 Sistema de caché inteligente con política LRU para optimización de procesamiento
-de video. Implementa almacenamiento persistente con serialización pickle, gestión
+de vídeo. Implementa almacenamiento persistente con serialización pickle, gestión
 automática de expiración TTL y limpieza por tamaño con estrategia LRU.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - pickle: Serialización de objetos Python
+    - json: Almacenamiento de metadatos
+    - hashlib: Generación de claves hash
+
+Usage:
+    from app.core.cache import CacheManager, cached
+
+    cache = CacheManager(cache_dir=Path("cache"), max_size_mb=500)
+
+    result = cache.get("key")
+    if result is None:
+        result = compute_expensive_operation()
+        cache.set("key", result, ttl_hours=24)
+
+    @cached(cache, key_prefix="encoding", ttl_hours=48)
+    def expensive_function(data):
+        return processed_data
 """
 
 import hashlib
@@ -32,11 +51,11 @@ class CacheManager:
     Used), y expiración basada en tiempo de vida (TTL).
 
     Attributes:
-        cache_dir (Path): Directorio raíz donde se almacenan archivos de caché.
-        max_size_mb (int): Límite máximo de tamaño del caché en megabytes.
-        metadata_file (Path): Archivo JSON con metadatos de todas las entradas.
-        metadata (Dict): Diccionario en memoria con información de cada entrada
-            cacheada incluyendo timestamps, hits, tamaño y metadatos personalizados.
+        cache_dir: Directorio raíz donde se almacenan archivos de caché
+        max_size_mb: Límite máximo de tamaño del caché en megabytes
+        metadata_file: Archivo JSON con metadatos de todas las entradas
+        metadata: Diccionario en memoria con información de cada entrada
+            cacheada incluyendo timestamps, hits, tamaño y metadatos personalizados
     """
 
     def __init__(self, cache_dir: Path, max_size_mb: int = 500):
@@ -45,9 +64,9 @@ class CacheManager:
 
         Args:
             cache_dir: Directorio donde almacenar archivos de caché. Se crea
-                automáticamente si no existe.
+                automáticamente si no existe
             max_size_mb: Tamaño máximo del caché en megabytes. Al superar este
-                límite se activa limpieza automática LRU. Por defecto 500MB.
+                límite se activa limpieza automática LRU. Por defecto 500MB
 
         Notes:
             El directorio de caché se crea con parents=True para generar toda
@@ -66,7 +85,7 @@ class CacheManager:
 
         Returns:
             Diccionario con metadatos de todas las entradas, o diccionario vacío
-            si el archivo no existe o está corrupto.
+            si el archivo no existe o está corrupto
 
         Notes:
             Los errores de carga se registran pero no interrumpen la inicialización,
@@ -100,11 +119,11 @@ class CacheManager:
         Genera clave hash única para conjunto de parámetros.
 
         Args:
-            *args: Argumentos posicionales a incluir en la clave.
-            **kwargs: Argumentos nombrados a incluir en la clave.
+            *args: Argumentos posicionales a incluir en la clave
+            **kwargs: Argumentos nombrados a incluir en la clave
 
         Returns:
-            Hash MD5 hexadecimal de 32 caracteres representando los parámetros.
+            Hash MD5 hexadecimal de 32 caracteres representando los parámetros
 
         Notes:
             Los kwargs se ordenan alfabéticamente para garantizar consistencia
@@ -119,10 +138,10 @@ class CacheManager:
         Calcula ruta del archivo de caché para una clave dada.
 
         Args:
-            key: Identificador único de la entrada de caché.
+            key: Identificador único de la entrada de caché
 
         Returns:
-            Path completo al archivo .cache correspondiente.
+            Path completo al archivo .cache correspondiente
         """
         return self.cache_dir / f"{key}.cache"
 
@@ -131,11 +150,11 @@ class CacheManager:
         Recupera valor del caché si existe y no ha expirado.
 
         Args:
-            key: Identificador único de la entrada a recuperar.
+            key: Identificador único de la entrada a recuperar
 
         Returns:
             Objeto deserializado si existe en caché y es válido, None si no existe,
-            expiró o hubo error de deserialización.
+            expiró o hubo error de deserialización
 
         Notes:
             Actualiza automáticamente estadísticas de hits y timestamp de último
@@ -182,10 +201,10 @@ class CacheManager:
         Almacena valor en caché con tiempo de vida especificado.
 
         Args:
-            key: Identificador único para la entrada.
-            value: Objeto Python a cachear (debe ser serializable con pickle).
-            ttl_hours: Tiempo de vida en horas antes de expiración. Por defecto 24h.
-            metadata: Diccionario opcional con metadatos personalizados para la entrada.
+            key: Identificador único para la entrada
+            value: Objeto Python a cachear (debe ser serializable con pickle)
+            ttl_hours: Tiempo de vida en horas antes de expiración. Por defecto 24h
+            metadata: Diccionario opcional con metadatos personalizados para la entrada
 
         Notes:
             Serializa el valor con pickle y almacena metadatos en JSON separado.
@@ -223,7 +242,7 @@ class CacheManager:
         Elimina entrada del caché incluyendo archivo y metadatos.
 
         Args:
-            key: Identificador de la entrada a eliminar.
+            key: Identificador de la entrada a eliminar
 
         Notes:
             Maneja gracefully el caso donde el archivo o metadatos no existen.
@@ -300,7 +319,7 @@ class CacheManager:
         Calcula tamaño total actual del caché en megabytes.
 
         Returns:
-            Suma de tamaños de todas las entradas en MB, o 0.0 si está vacío.
+            Suma de tamaños de todas las entradas en MB, o 0.0 si está vacío
         """
         if not self.metadata:
             return 0.0
@@ -312,12 +331,12 @@ class CacheManager:
 
         Returns:
             Diccionario con métricas del caché:
-                total_entries (int): Número de entradas cacheadas.
-                total_size_mb (float): Tamaño total en megabytes.
-                max_size_mb (int): Límite máximo configurado.
-                usage_percent (float): Porcentaje de uso del límite.
-                total_hits (int): Suma de hits de todas las entradas.
-                entries (List[str]): Lista de claves de entradas existentes.
+                total_entries: Número de entradas cacheadas
+                total_size_mb: Tamaño total en megabytes
+                max_size_mb: Límite máximo configurado
+                usage_percent: Porcentaje de uso del límite
+                total_hits: Suma de hits de todas las entradas
+                entries: Lista de claves de entradas existentes
 
         Notes:
             Útil para monitoreo, debugging y dashboards de métricas del sistema.
@@ -351,18 +370,12 @@ def cached(
     Decorador para cachear automáticamente resultados de funciones.
 
     Args:
-        cache_manager: Instancia de CacheManager a utilizar.
-        key_prefix: Prefijo opcional para distinguir contextos de caché.
-        ttl_hours: Tiempo de vida en horas para entradas generadas.
+        cache_manager: Instancia de CacheManager a utilizar
+        key_prefix: Prefijo opcional para distinguir contextos de caché
+        ttl_hours: Tiempo de vida en horas para entradas generadas
 
     Returns:
-        Decorador que envuelve funciones para agregar comportamiento de caché.
-
-    Example:
-        >>> @cached(cache_manager, key_prefix="actor_encoding", ttl_hours=48)
-        >>> def extract_encoding(image):
-        >>>     # Procesamiento computacionalmente costoso
-        >>>     return encoding
+        Decorador que envuelve funciones para agregar comportamiento de caché
 
     Notes:
         La clave de caché se genera combinando:

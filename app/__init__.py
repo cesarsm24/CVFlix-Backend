@@ -8,20 +8,20 @@ clasificación de planos, evaluación de composición, iluminación y color.
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
-Faculty: Escuela Politécnica de Cáceres (EPCC)
-Universidad: Universidad de Extremadura (UEX)
+Faculty: Escuela Politécnica de Cáceres
+Universidad: Universidad de Extremadura
 Version: 4.0.0
 
 Core Technologies:
-    - FastAPI (API REST y Server-Sent Events)
-    - OpenCV (procesamiento de video)
-    - face_recognition (reconocimiento facial)
-    - TensorFlow/Keras (detección de emociones)
+    - FastAPI: API REST y Server-Sent Events
+    - OpenCV: Procesamiento de video
+    - face_recognition: Reconocimiento facial
+    - TensorFlow/Keras: Detección de emociones
 
 Main Components:
-    - VideoProcessor: orquestador principal de análisis
-    - TMDBService: integración con The Movie Database
-    - Analizadores cinematográficos (planos, composición, iluminación, color)
+    - VideoProcessor: Orquestador principal de análisis
+    - TMDBService: Integración con The Movie Database
+    - Analizadores cinematográficos: Planos, composición, iluminación, color
     - Sistema de caché LRU y monitoreo de rendimiento
 """
 
@@ -29,5 +29,5 @@ __version__ = "4.0.0"
 __author__ = "César Sánchez Montes"
 __course__ = "Imagen Digital"
 __year__ = "2025"
-__faculty__ = "Escuela Politécnica de Cáceres (EPCC)"
-__university__ = "Universidad de Extremadura (UEX)"
+__faculty__ = "Escuela Politécnica de Cáceres"
+__university__ = "Universidad de Extremadura"

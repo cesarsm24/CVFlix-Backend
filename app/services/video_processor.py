@@ -1,7 +1,7 @@
 """
 video_processor.py
 
-Procesador principal de video con análisis cinematográfico integral. Orquesta
+Procesador principal de vídeo con análisis cinematográfico integral. Orquesta
 múltiples analizadores especializados para detección facial, reconocimiento de
 actores, clasificación de planos, análisis de composición, iluminación, colores
 y movimiento de cámara.
@@ -20,6 +20,28 @@ Features:
     - Detección de movimiento de cámara
     - Acumulación de estadísticas para visualizaciones agregadas
     - Manejo robusto de errores con logging detallado
+
+Dependencies:
+    - opencv-python: Procesamiento de vídeo
+    - numpy: Operaciones numéricas
+    - app.analysis.*: Módulos de análisis especializados
+    - app.config: Configuración centralizada
+    - app.utils: Utilidades compartidas
+
+Usage:
+    from app.services.video_processor import VideoProcessor
+
+    processor = VideoProcessor()
+    processor.load_actor_encodings(actors_data)
+
+    result = processor.process_frame_optimized(
+        frame=frame,
+        frame_number=0,
+        detect_faces=True,
+        full_analysis=True
+    )
+
+    final_results = processor.get_final_results()
 """
 
 import cv2
@@ -39,7 +61,8 @@ from ..config import (
     USE_FACE_TRACKING,
     TRACKING_THRESHOLD,
     ANALYSIS_CONFIG,
-    EMOTION_MODEL_PATH
+    EMOTION_MODEL_PATH,
+    FACE_DETECTION_METHOD
 )
 from ..utils.exceptions import VideoProcessingException
 
@@ -48,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 class VideoProcessor:
     """
-    Orquestador principal de análisis cinematográfico de video.
+    Orquestador principal de análisis cinematográfico de vídeo.
 
     Coordina múltiples analizadores especializados ejecutando pipeline completo
     de procesamiento por frame: detección facial, reconocimiento de actores,
@@ -57,20 +80,20 @@ class VideoProcessor:
     para generación de reportes agregados.
 
     Attributes:
-        face_detector (FaceDetector): Detector DNN de rostros.
-        face_recognizer (FaceRecognizer): Reconocedor de actores por embeddings.
-        shot_analyzer (ShotAnalyzer): Clasificador de tipos de plano.
-        composition_analyzer (CompositionAnalyzer): Evaluador de composición visual.
-        lighting_analyzer (LightingAnalyzer): Analizador de iluminación.
-        color_analyzer (ColorAnalyzer): Analizador cromático con histogramas.
-        camera_analyzer (CameraMovementAnalyzer): Detector de movimiento de cámara.
-        emotion_detector (EmotionDetector): Clasificador de emociones faciales.
-        detected_actors (Dict[int, Dict]): Acumulador de actores detectados.
-        shot_types_count (Counter): Contador de tipos de plano.
-        lighting_types_count (Counter): Contador de tipos de iluminación.
-        emotions_count (Counter): Contador de emociones detectadas.
-        composition_data (Dict): Datos temporales de métricas compositivas.
-        total_frames_analyzed (int): Contador total de frames procesados.
+        face_detector: Detector de rostros (DNN o Viola-Jones)
+        face_recognizer: Reconocedor de actores por embeddings
+        shot_analyzer: Clasificador de tipos de plano
+        composition_analyzer: Evaluador de composición visual
+        lighting_analyzer: Analizador de iluminación
+        color_analyzer: Analizador cromático con histogramas
+        camera_analyzer: Detector de movimiento de cámara
+        emotion_detector: Clasificador de emociones faciales
+        detected_actors: Acumulador de actores detectados
+        shot_types_count: Contador de tipos de plano
+        lighting_types_count: Contador de tipos de iluminación
+        emotions_count: Contador de emociones detectadas
+        composition_data: Datos temporales de métricas compositivas
+        total_frames_analyzed: Contador total de frames procesados
     """
 
     def __init__(self):
@@ -78,33 +101,48 @@ class VideoProcessor:
         Inicializa procesador cargando todos los analizadores especializados.
 
         Raises:
-            VideoProcessingException: Si falla inicialización de algún analizador.
+            VideoProcessingException: Si falla inicialización de algún analizador
 
         Notes:
             El detector de emociones se carga condicionalmente según existencia
             del archivo de modelo. Si no está disponible, las detecciones
             emocionales utilizarán análisis geométrico como fallback.
+
+            El método de detección facial (DNN o Viola-Jones) se configura
+            automáticamente según FACE_DETECTION_METHOD en config.py.
         """
-        logger.info("Inicializando VideoProcessor...")
+        logger.info("=" * 70)
+        logger.info("🎬 Inicializando VideoProcessor v4.0.0...")
+        logger.info("=" * 70)
 
         try:
+            logger.info(f"📦 Cargando FaceDetector (método: {FACE_DETECTION_METHOD})...")
             self.face_detector = FaceDetector()
+            logger.info("✅ FaceDetector cargado")
+
+            logger.info("📦 Cargando FaceRecognizer...")
             self.face_recognizer = FaceRecognizer()
+            logger.info("✅ FaceRecognizer cargado")
+
+            logger.info("📦 Cargando analizadores especializados...")
             self.shot_analyzer = ShotAnalyzer()
             self.composition_analyzer = CompositionAnalyzer()
             self.lighting_analyzer = LightingAnalyzer()
             self.color_analyzer = ColorAnalyzer()
             self.camera_analyzer = CameraMovementAnalyzer()
+            logger.info("✅ Analizadores especializados cargados")
 
+            logger.info("📦 Cargando EmotionDetector...")
             emotion_model = str(EMOTION_MODEL_PATH) if EMOTION_MODEL_PATH.exists() else None
             self.emotion_detector = EmotionDetector(model_path=emotion_model)
+            logger.info("✅ EmotionDetector cargado")
 
-            logger.info("Analizadores cargados correctamente")
+            logger.info("✅ Todos los analizadores cargados correctamente")
 
         except Exception as e:
-            logger.error(f"Error inicializando analizadores: {e}")
+            logger.error(f"❌ Error inicializando analizadores: {e}")
             raise VideoProcessingException(
-                "Error inicializando procesador de video",
+                "Error inicializando procesador de vídeo",
                 str(e)
             )
 
@@ -126,7 +164,39 @@ class VideoProcessor:
             'lines_count': []
         }
 
-        logger.info("VideoProcessor inicializado completamente")
+        logger.info("=" * 70)
+        logger.info("✅ VideoProcessor inicializado completamente")
+        logger.info("=" * 70)
+
+    def add_known_face(
+        self,
+        encoding: np.ndarray,
+        actor_id: int,
+        nombre: str,
+        personaje: str,
+        foto_url: str
+    ):
+        """
+        Añade rostro conocido para reconocimiento.
+
+        Args:
+            encoding: Encoding facial de 128 dimensiones
+            actor_id: ID único del actor
+            nombre: Nombre del actor
+            personaje: Personaje que interpreta
+            foto_url: URL de la foto del actor
+
+        Notes:
+            Este método delega al FaceRecognizer interno para mantener
+            compatibilidad con código existente.
+        """
+        self.face_recognizer.add_known_face(
+            encoding=encoding,
+            actor_id=actor_id,
+            nombre=nombre,
+            personaje=personaje,
+            foto_url=foto_url
+        )
 
     def load_actor_encodings(self, actors_data: List[Dict]):
         """
@@ -134,20 +204,21 @@ class VideoProcessor:
 
         Args:
             actors_data: Lista de diccionarios con datos de actores incluyendo
-                encodings de 128 dimensiones pre-calculados.
+                encodings de 128 dimensiones pre-calculados
 
         Raises:
-            VideoProcessingException: Si falla carga de encodings.
+            VideoProcessingException: Si falla carga de encodings
 
         Notes:
             Los encodings deben haberse generado previamente desde fotografías
             de referencia de cada actor usando face_recognition library.
         """
         try:
+            logger.info(f"📥 Cargando {len(actors_data)} encodings de actores...")
             self.face_recognizer.load_actor_encodings(actors_data)
-            logger.info(f"{len(actors_data)} encodings de actores cargados")
+            logger.info(f"✅ {len(actors_data)} encodings de actores cargados")
         except Exception as e:
-            logger.error(f"Error cargando encodings: {e}")
+            logger.error(f"❌ Error cargando encodings: {e}")
             raise VideoProcessingException("Error cargando actores", str(e))
 
     def process_frame_optimized(
@@ -166,22 +237,22 @@ class VideoProcessor:
         consecutivos para reducir overhead de detección.
 
         Args:
-            frame: Frame en formato BGR (OpenCV) a procesar.
-            frame_number: Índice del frame en secuencia de video.
-            detect_faces: Si ejecutar detección facial en este frame.
-            full_analysis: Si ejecutar análisis completo (composición, iluminación).
-            last_faces: Rostros detectados en frame anterior para tracking.
+            frame: Frame en formato BGR (OpenCV) a procesar
+            frame_number: Índice del frame en secuencia de vídeo
+            detect_faces: Si ejecutar detección facial en este frame
+            full_analysis: Si ejecutar análisis completo (composición, iluminación)
+            last_faces: Rostros detectados en frame anterior para tracking
 
         Returns:
             Diccionario con resultados de todos los análisis ejecutados:
-                frame_number (int): Índice del frame.
-                faces (List[Dict]): Rostros detectados con reconocimiento y emociones.
-                shot_type (Dict): Clasificación de tipo de plano.
-                composition (Dict): Métricas de composición visual.
-                lighting (Dict): Análisis de iluminación.
-                colors (Dict): Análisis cromático.
-                camera_movement (Dict): Detección de movimiento de cámara.
-                emotions (List[Dict]): Emociones detectadas en el frame.
+                frame_number: Índice del frame
+                faces: Rostros detectados con reconocimiento y emociones
+                shot_type: Clasificación de tipo de plano
+                composition: Métricas de composición visual
+                lighting: Análisis de iluminación
+                colors: Análisis cromático
+                camera_movement: Detección de movimiento de cámara
+                emotions: Emociones detectadas en el frame
 
         Notes:
             Estrategia de optimización:
@@ -209,7 +280,6 @@ class VideoProcessor:
             face_boxes = []
             detect_emotions = ANALYSIS_CONFIG.get("emotion_detection", {}).get("enabled", True) and full_analysis
 
-            # ==================== DETECCIÓN FACIAL ====================
             if detect_faces:
                 try:
                     face_locations, face_boxes = self.face_detector.detect_faces(frame)
@@ -229,7 +299,6 @@ class VideoProcessor:
                                 "recognized": recognition is not None
                             }
 
-                            # Detección de emociones
                             emotion_data = None
                             if detect_emotions:
                                 try:
@@ -250,9 +319,8 @@ class VideoProcessor:
                                                 face_info["emotion"] = emotion_data
 
                                 except Exception as e:
-                                    logger.warning(f"Error detectando emoción: {e}")
+                                    logger.warning(f"⚠️ Error detectando emoción frame {frame_number}: {e}")
 
-                            # Reconocimiento de actores
                             if recognition:
                                 actor_id = recognition["actor_id"]
 
@@ -285,13 +353,11 @@ class VideoProcessor:
                             results["faces"].append(face_info)
 
                 except Exception as e:
-                    logger.warning(f"Error en detección facial frame {frame_number}: {e}")
+                    logger.warning(f"⚠️ Error en detección facial frame {frame_number}: {e}")
 
             else:
-                # Reutilizar detecciones del frame anterior
                 face_boxes = self.last_face_locations
 
-            # ==================== ANÁLISIS DE TIPO DE PLANO ====================
             if ANALYSIS_CONFIG.get("shot_type", {}).get("enabled", True) and face_boxes:
                 try:
                     shot_result = self.shot_analyzer.analyze_shot_type(frame, face_boxes)
@@ -299,14 +365,12 @@ class VideoProcessor:
                     if shot_result:
                         self.shot_types_count[shot_result["shot_type"]] += 1
                 except Exception as e:
-                    logger.warning(f"Error en análisis de plano: {e}")
+                    logger.warning(f"⚠️ Error en análisis de plano frame {frame_number}: {e}")
 
-            # ==================== ANÁLISIS COMPLETO ====================
             if full_analysis:
-                # Análisis de composición
                 if ANALYSIS_CONFIG.get("composition", {}).get("enabled", True):
                     try:
-                        composition_result = self.composition_analyzer.analyze_composition(frame)
+                        composition_result = self.composition_analyzer.analyze(frame)
                         results["composition"] = composition_result
 
                         if composition_result:
@@ -314,28 +378,26 @@ class VideoProcessor:
                                 composition_result['rule_of_thirds']['score']
                             )
                             self.composition_data['symmetry_scores'].append(
-                                composition_result['symmetry']['vertical_symmetry']
+                                composition_result['symmetry']['score']
                             )
                             self.composition_data['balance_scores'].append(
-                                composition_result['balance']['horizontal_balance']
+                                composition_result['balance']['score']
                             )
                             self.composition_data['lines_count'].append(
-                                composition_result['lines']['num_lines']
+                                composition_result['leading_lines']['num_lines']
                             )
                     except Exception as e:
-                        logger.warning(f"Error en análisis de composición: {e}")
+                        logger.warning(f"⚠️ Error en análisis de composición frame {frame_number}: {e}")
 
-                # Análisis de iluminación
                 if ANALYSIS_CONFIG.get("lighting", {}).get("enabled", True):
                     try:
-                        lighting_result = self.lighting_analyzer.analyze_lighting(frame)
+                        lighting_result = self.lighting_analyzer.analyze(frame)
                         results["lighting"] = lighting_result
                         if lighting_result:
-                            self.lighting_types_count[lighting_result["lighting_type"]] += 1
+                            self.lighting_types_count[lighting_result["type"]] += 1
                     except Exception as e:
-                        logger.warning(f"Error en análisis de iluminación: {e}")
+                        logger.warning(f"⚠️ Error en análisis de iluminación frame {frame_number}: {e}")
 
-                # Análisis de colores
                 if ANALYSIS_CONFIG.get("colors", {}).get("enabled", True):
                     try:
                         color_result = self.color_analyzer.analyze_colors(frame, n_colors=5)
@@ -355,50 +417,40 @@ class VideoProcessor:
                             self.color_analyzer.accumulate_histogram(frame)
 
                     except Exception as e:
-                        logger.warning(f"Error en análisis de colores: {e}")
+                        logger.warning(f"⚠️ Error en análisis de colores frame {frame_number}: {e}")
 
-            # ==================== ANÁLISIS DE MOVIMIENTO DE CÁMARA ====================
             if ANALYSIS_CONFIG.get("camera_movement", {}).get("enabled", True):
                 try:
-                    # Verificar dimensiones antes de convertir
-                    if len(frame.shape) == 2:
-                        # Ya es grayscale (2D)
-                        gray = frame
-                    elif frame.shape[2] == 1:
-                        # Ya es grayscale pero con dimensión extra
-                        gray = frame.squeeze()
-                    else:
-                        # Convertir BGR a grayscale
-                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     camera_result = self.camera_analyzer.analyze_movement(gray, frame_number)
                     results["camera_movement"] = camera_result
+
                 except Exception as e:
-                    logger.warning(f"Error en análisis de movimiento: {e}")
+                    logger.warning(f"⚠️ Error en análisis de movimiento frame {frame_number}: {e}")
 
             self.total_frames_analyzed += 1
 
         except Exception as e:
-            logger.error(f"Error procesando frame {frame_number}: {e}")
+            logger.error(f"❌ Error procesando frame {frame_number}: {e}")
             raise VideoProcessingException(f"Error procesando frame {frame_number}", str(e))
 
         return results
 
     def _calculate_global_palette(self, n_colors: int = 5) -> List[Dict]:
         """
-        Calcula paleta de colores global del video mediante K-means clustering.
+        Calcula paleta de colores global del vídeo mediante K-means clustering.
 
         Args:
-            n_colors: Número de colores dominantes a extraer.
+            n_colors: Número de colores dominantes a extraer
 
         Returns:
             Lista de diccionarios con colores RGB, hex y nombre.
-            Lista vacía si no hay datos de color acumulados.
+            Lista vacía si no hay datos de color acumulados
 
         Notes:
             Ejecuta K-means sobre todos los colores dominantes acumulados de
             cada frame analizado para identificar la paleta cromática global
-            característica del video completo.
+            característica del vídeo completo.
         """
         if not self.global_colors:
             return []
@@ -428,7 +480,7 @@ class VideoProcessor:
             return palette
 
         except Exception as e:
-            logger.warning(f"Error calculando paleta global: {e}")
+            logger.warning(f"⚠️ Error calculando paleta global: {e}")
             return []
 
     def get_final_results(self) -> Dict:
@@ -438,10 +490,10 @@ class VideoProcessor:
         Returns:
             Diccionario con estadísticas globales, actores detectados,
             distribuciones de características cinematográficas y datos
-            para visualizaciones (histogramas, timelines).
+            para visualizaciones (histogramas, timelines)
 
         Raises:
-            VideoProcessingException: Si falla generación de resultados.
+            VideoProcessingException: Si falla generación de resultados
 
         Notes:
             Los resultados incluyen:
@@ -452,7 +504,7 @@ class VideoProcessor:
                 - Timeline de movimientos de cámara
                 - Métricas promedio de composición
         """
-        logger.info("Generando resultados finales...")
+        logger.info("📊 Generando resultados finales...")
 
         try:
             actors_list = sorted(
@@ -474,11 +526,13 @@ class VideoProcessor:
                 })
 
             camera_summary = self.camera_analyzer.get_movement_summary()
+
             shot_types_summary = self._get_percentage_summary(self.shot_types_count)
             lighting_summary = self._get_percentage_summary(self.lighting_types_count)
             emotions_summary = self._get_percentage_summary(self.emotions_count)
             color_temp_summary = self._get_percentage_summary(self.color_temperatures_count)
             color_scheme_summary = self._get_percentage_summary(self.color_schemes_count)
+
             global_palette = self._calculate_global_palette(n_colors=5)
 
             histogram_data = None
@@ -490,7 +544,7 @@ class VideoProcessor:
                     "frames_count": self.color_analyzer.frames_count
                 }
 
-            camera_timeline = self.camera_analyzer.get_timeline_data()
+            camera_timeline = camera_summary.get("timeline", [])
 
             composition_data = None
             if any(self.composition_data.values()):
@@ -558,11 +612,16 @@ class VideoProcessor:
                 "composition_data": composition_data
             }
 
-            logger.info("Resultados finales generados correctamente")
+            logger.info(f"✅ Resultados finales generados correctamente")
+            logger.info(f"   - Actores detectados: {len(final_actors)}")
+            logger.info(f"   - Frames analizados: {self.total_frames_analyzed}")
+            logger.info(f"   - Tipos de plano: {len(self.shot_types_count)} diferentes")
+            logger.info(f"   - Emociones detectadas: {sum(self.emotions_count.values())}")
+
             return results
 
         except Exception as e:
-            logger.error(f"Error generando resultados finales: {e}")
+            logger.error(f"❌ Error generando resultados finales: {e}")
             raise VideoProcessingException("Error al generar resultados finales", str(e))
 
     def _get_percentage_summary(self, counter: Counter) -> Dict[str, float]:
@@ -570,10 +629,10 @@ class VideoProcessor:
         Convierte Counter a diccionario de porcentajes.
 
         Args:
-            counter: Counter con conteos absolutos.
+            counter: Counter con conteos absolutos
 
         Returns:
-            Diccionario mapeando claves a porcentajes redondeados a 1 decimal.
+            Diccionario mapeando claves a porcentajes redondeados a 1 decimal
         """
         total = sum(counter.values())
         if total == 0:
@@ -589,10 +648,10 @@ class VideoProcessor:
         Obtiene elemento más frecuente de un Counter.
 
         Args:
-            counter: Counter a analizar.
+            counter: Counter a analizar
 
         Returns:
-            Elemento más común o None si Counter vacío.
+            Elemento más común o None si Counter vacío
         """
         if not counter:
             return None
@@ -600,20 +659,23 @@ class VideoProcessor:
 
     def reset(self):
         """
-        Reinicia estado del procesador para análisis de nuevo video.
+        Reinicia estado del procesador para análisis de nuevo vídeo.
 
         Limpia todos los acumuladores, contadores y estado de analizadores
         manteniendo los modelos cargados en memoria.
 
         Raises:
-            VideoProcessingException: Si falla reset de algún componente.
+            VideoProcessingException: Si falla reset de algún componente
 
         Notes:
-            Los encodings de actores no se limpian, permitiendo reutilizar
-            el procesador para múltiples videos del mismo contenido sin
-            recargar datos de TMDB.
+            Los encodings de actores NO se limpian automáticamente, permitiendo
+            reutilizar el procesador para múltiples vídeos del mismo contenido
+            sin recargar datos de TMDB.
+
+            Para limpiar encodings también, llama a:
+                processor.face_recognizer.clear_known_faces()
         """
-        logger.info("Reseteando VideoProcessor...")
+        logger.info("🔄 Reseteando VideoProcessor...")
 
         try:
             self.detected_actors.clear()
@@ -637,8 +699,8 @@ class VideoProcessor:
                 'lines_count': []
             }
 
-            logger.info("VideoProcessor reseteado correctamente")
+            logger.info("✅ VideoProcessor reseteado correctamente")
 
         except Exception as e:
-            logger.error(f"Error reseteando VideoProcessor: {e}")
+            logger.error(f"❌ Error reseteando VideoProcessor: {e}")
             raise VideoProcessingException("Error al resetear procesador", str(e))

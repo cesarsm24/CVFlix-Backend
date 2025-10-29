@@ -1,10 +1,18 @@
 """
-==============================================================================
-Test VideoProcessor - Tests del Procesador de Video
-==============================================================================
-Tests unitarios y de integración para el procesador principal
-==============================================================================
+test_video_processor.py
+
+Tests unitarios y de integración para el procesador principal de vídeo.
+
+Author: César Sánchez Montes
+Course: Imagen Digital
+Year: 2025
+Version: 4.0.0
+
+Usage:
+    pytest tests/test_video_processor.py -v
+    pytest tests/test_video_processor.py -m "not slow"
 """
+
 import pytest
 import numpy as np
 from unittest.mock import Mock, patch
@@ -12,10 +20,10 @@ from collections import Counter
 
 
 class TestVideoProcessorInitialization:
-    """Tests de inicialización del procesador"""
+    """Tests de inicialización del procesador."""
 
     def test_processor_init_success(self):
-        """Test de inicialización exitosa"""
+        """Test de inicialización exitosa."""
         from app.services.video_processor import VideoProcessor
 
         processor = VideoProcessor()
@@ -28,7 +36,7 @@ class TestVideoProcessorInitialization:
         assert len(processor.detected_actors) == 0
 
     def test_processor_has_all_analyzers(self, video_processor):
-        """Test de que tiene todos los analizadores"""
+        """Test de que tiene todos los analizadores."""
         assert hasattr(video_processor, 'face_detector')
         assert hasattr(video_processor, 'face_recognizer')
         assert hasattr(video_processor, 'shot_analyzer')
@@ -40,19 +48,18 @@ class TestVideoProcessorInitialization:
 
 
 class TestActorEncodingLoading:
-    """Tests de carga de encodings de actores"""
+    """Tests de carga de encodings de actores."""
 
     def test_load_actor_encodings_success(self, video_processor, mock_actor_data):
-        """Test de carga exitosa de encodings"""
+        """Test de carga exitosa de encodings."""
         actors_data = [mock_actor_data]
 
         video_processor.load_actor_encodings(actors_data)
 
-        # Verificar que el recognizer tiene los actores
         assert len(video_processor.face_recognizer.actor_encodings) == 1
 
     def test_load_multiple_actors(self, video_processor):
-        """Test de carga de múltiples actores"""
+        """Test de carga de múltiples actores."""
         actors_data = [
             {
                 "id": 1,
@@ -75,17 +82,17 @@ class TestActorEncodingLoading:
         assert len(video_processor.face_recognizer.actor_encodings) == 2
 
     def test_load_empty_actors_list(self, video_processor):
-        """Test de carga con lista vacía"""
+        """Test de carga con lista vacía."""
         video_processor.load_actor_encodings([])
 
         assert len(video_processor.face_recognizer.actor_encodings) == 0
 
 
 class TestFrameProcessing:
-    """Tests de procesamiento de frames"""
+    """Tests de procesamiento de frames."""
 
     def test_process_frame_basic(self, video_processor, sample_frame):
-        """Test de procesamiento básico de frame"""
+        """Test de procesamiento básico de frame."""
         result = video_processor.process_frame_optimized(
             sample_frame,
             frame_number=1,
@@ -102,7 +109,7 @@ class TestFrameProcessing:
     def test_process_frame_with_face_detection(
             self, video_processor, sample_frame_with_face
     ):
-        """Test de procesamiento con detección facial"""
+        """Test de procesamiento con detección facial."""
         result = video_processor.process_frame_optimized(
             sample_frame_with_face,
             frame_number=1,
@@ -111,13 +118,12 @@ class TestFrameProcessing:
         )
 
         assert "faces" in result
-        # Puede o no detectar caras en frame sintético
         assert isinstance(result["faces"], list)
 
     def test_process_frame_with_full_analysis(
             self, video_processor, sample_frame
     ):
-        """Test de procesamiento con análisis completo"""
+        """Test de procesamiento con análisis completo."""
         result = video_processor.process_frame_optimized(
             sample_frame,
             frame_number=1,
@@ -125,12 +131,11 @@ class TestFrameProcessing:
             full_analysis=True
         )
 
-        # Verificar que se ejecutaron todos los análisis
         assert result["shot_type"] is not None or result["composition"] is not None
         assert result["camera_movement"] is not None
 
     def test_process_multiple_frames(self, video_processor, sample_frame):
-        """Test de procesamiento de múltiples frames"""
+        """Test de procesamiento de múltiples frames."""
         frames_to_process = 10
 
         for i in range(frames_to_process):
@@ -147,7 +152,7 @@ class TestFrameProcessing:
     def test_process_frame_respects_config(
             self, mock_config, video_processor, sample_frame
     ):
-        """Test de que respeta la configuración de análisis"""
+        """Test de que respeta la configuración de análisis."""
         mock_config.get.return_value = {"enabled": False}
 
         result = video_processor.process_frame_optimized(
@@ -157,15 +162,14 @@ class TestFrameProcessing:
             full_analysis=True
         )
 
-        # Al menos debe tener estructura básica
         assert isinstance(result, dict)
 
 
 class TestActorStatistics:
-    """Tests de estadísticas de actores"""
+    """Tests de estadísticas de actores."""
 
     def test_update_actor_stats(self, video_processor):
-        """Test de actualización de estadísticas de actor"""
+        """Test de actualización de estadísticas de actor."""
         recognition = {
             "actor_id": 1,
             "nombre": "Test Actor",
@@ -184,7 +188,7 @@ class TestActorStatistics:
         assert 10 in actor_data["frames_aparicion"]
 
     def test_multiple_detections_same_actor(self, video_processor):
-        """Test de múltiples detecciones del mismo actor"""
+        """Test de múltiples detecciones del mismo actor."""
         recognition = {
             "actor_id": 1,
             "nombre": "Test Actor",
@@ -193,10 +197,8 @@ class TestActorStatistics:
             "similitud": 90.0
         }
 
-        # Primera detección
         video_processor._update_actor_stats(1, recognition, 10)
 
-        # Segunda detección con mayor similitud
         recognition["similitud"] = 95.0
         video_processor._update_actor_stats(1, recognition, 20)
 
@@ -208,10 +210,10 @@ class TestActorStatistics:
 
 
 class TestFinalResults:
-    """Tests de resultados finales"""
+    """Tests de resultados finales."""
 
     def test_get_final_results_empty(self, video_processor):
-        """Test de resultados sin procesamiento"""
+        """Test de resultados sin procesamiento."""
         results = video_processor.get_final_results()
 
         assert "detected_actors" in results
@@ -220,8 +222,7 @@ class TestFinalResults:
         assert isinstance(results["detected_actors"], list)
 
     def test_get_final_results_with_actors(self, video_processor):
-        """Test de resultados con actores detectados"""
-        # Simular detección de actores
+        """Test de resultados con actores detectados."""
         recognition = {
             "actor_id": 1,
             "nombre": "Actor 1",
@@ -245,12 +246,10 @@ class TestFinalResults:
         assert results["total_actors_detected"] == 2
         assert len(results["detected_actors"]) == 2
 
-        # Verificar orden (por detecciones)
         assert results["detected_actors"][0]["actor_id"] in [1, 2]
 
     def test_get_final_results_structure(self, video_processor, sample_frame):
-        """Test de estructura completa de resultados"""
-        # Procesar algunos frames
+        """Test de estructura completa de resultados."""
         for i in range(5):
             video_processor.process_frame_optimized(
                 sample_frame,
@@ -261,7 +260,6 @@ class TestFinalResults:
 
         results = video_processor.get_final_results()
 
-        # Verificar estructura completa
         required_keys = [
             "detected_actors",
             "total_actors_detected",
@@ -278,11 +276,10 @@ class TestFinalResults:
 
 
 class TestProcessorReset:
-    """Tests de reseteo del procesador"""
+    """Tests de reseteo del procesador."""
 
     def test_reset_clears_actors(self, video_processor):
-        """Test de que reset limpia actores"""
-        # Agregar un actor
+        """Test de que reset limpia actores."""
         recognition = {
             "actor_id": 1,
             "nombre": "Test",
@@ -299,8 +296,7 @@ class TestProcessorReset:
         assert len(video_processor.detected_actors) == 0
 
     def test_reset_clears_counters(self, video_processor, sample_frame):
-        """Test de que reset limpia contadores"""
-        # Procesar algunos frames
+        """Test de que reset limpia contadores."""
         for i in range(5):
             video_processor.process_frame_optimized(
                 sample_frame,
@@ -308,60 +304,53 @@ class TestProcessorReset:
                 full_analysis=True
             )
 
-        # Debería tener algunos conteos
         assert video_processor.total_frames_analyzed > 0
 
         video_processor.reset()
 
-        # Verificar que se reseteó
         assert video_processor.total_frames_analyzed == 0
         assert len(video_processor.shot_types_count) == 0
         assert len(video_processor.global_colors) == 0
 
     def test_reset_preserves_analyzers(self, video_processor):
-        """Test de que reset no elimina los analizadores"""
+        """Test de que reset no elimina los analizadores."""
         original_detector = video_processor.face_detector
 
         video_processor.reset()
 
-        # Los analizadores deben ser los mismos
         assert video_processor.face_detector is original_detector
 
 
 class TestErrorHandling:
-    """Tests de manejo de errores"""
+    """Tests de manejo de errores."""
 
     def test_process_invalid_frame(self, video_processor):
-        """Test con frame inválido"""
+        """Test con frame inválido."""
         with pytest.raises(Exception):
             video_processor.process_frame_optimized(
-                None,  # Frame None
+                None,
                 frame_number=1
             )
 
     def test_process_wrong_shape_frame(self, video_processor):
-        """Test con frame de forma incorrecta"""
-        wrong_frame = np.zeros((100, 100), dtype=np.uint8)  # 2D en vez de 3D
+        """Test con frame de forma incorrecta."""
+        wrong_frame = np.zeros((100, 100), dtype=np.uint8)
 
-        # Debería manejar el error gracefully o lanzar excepción
         try:
             result = video_processor.process_frame_optimized(
                 wrong_frame,
                 frame_number=1
             )
-            # Si no lanza excepción, verificar que el resultado sea válido
             assert isinstance(result, dict)
         except Exception:
-            # También es válido que lance excepción
             pass
 
 
 class TestCompositionDataAccumulation:
-    """Tests de acumulación de datos de composición"""
+    """Tests de acumulación de datos de composición."""
 
     def test_composition_data_accumulates(self, video_processor, sample_frame):
-        """Test de que los datos de composición se acumulan"""
-        # Procesar varios frames con análisis de composición
+        """Test de que los datos de composición se acumulan."""
         for i in range(5):
             video_processor.process_frame_optimized(
                 sample_frame,
@@ -369,14 +358,12 @@ class TestCompositionDataAccumulation:
                 full_analysis=True
             )
 
-        # Verificar que hay datos acumulados
         assert len(video_processor.composition_data['rule_of_thirds_scores']) > 0
 
     def test_composition_data_in_final_results(
             self, video_processor, sample_frame
     ):
-        """Test de que los datos de composición aparecen en resultados finales"""
-        # Procesar frames
+        """Test de que los datos de composición aparecen en resultados finales."""
         for i in range(3):
             video_processor.process_frame_optimized(
                 sample_frame,
@@ -386,7 +373,6 @@ class TestCompositionDataAccumulation:
 
         results = video_processor.get_final_results()
 
-        # Verificar que hay datos de composición
         if results.get("composition_data"):
             assert "rule_of_thirds_scores" in results["composition_data"]
 
@@ -394,16 +380,14 @@ class TestCompositionDataAccumulation:
 @pytest.mark.slow
 @pytest.mark.integration
 class TestIntegrationProcessing:
-    """Tests de integración de procesamiento completo"""
+    """Tests de integración de procesamiento completo."""
 
     def test_full_video_processing_simulation(
             self, video_processor, sample_frame, mock_actor_data
     ):
-        """Test de simulación de procesamiento completo de video"""
-        # Cargar actores
+        """Test de simulación de procesamiento completo de vídeo."""
         video_processor.load_actor_encodings([mock_actor_data])
 
-        # Procesar 30 frames (simulando 1 segundo de video a 30fps)
         for i in range(30):
             detect_faces = (i % 5 == 0)
             full_analysis = (i % 10 == 0)
@@ -418,7 +402,6 @@ class TestIntegrationProcessing:
             assert isinstance(result, dict)
             assert result["frame_number"] == i
 
-        # Obtener resultados finales
         final_results = video_processor.get_final_results()
 
         assert final_results["total_frames_analyzed"] > 0

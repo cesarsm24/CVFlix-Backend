@@ -9,6 +9,20 @@ Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - opencv-python: Procesamiento de imágenes y análisis geométrico
+    - numpy: Operaciones con arrays
+    - tensorflow: Carga y ejecución de modelos de aprendizaje profundo (opcional)
+
+Usage:
+    from app.analysis.emotion_detector import EmotionDetector
+
+    detector = EmotionDetector(model_path="models/fer2013_model.h5")
+    emotion = detector.detect_emotion(face_region)
+
+    print(f"Emoción: {emotion['emotion']}")
+    print(f"Confianza: {emotion['confidence']}")
 """
 
 import cv2
@@ -22,21 +36,21 @@ class EmotionDetector:
     Detector de emociones faciales mediante aprendizaje profundo y análisis geométrico.
 
     Implementa un sistema híbrido de detección de emociones que utiliza redes neuronales
-    convolucionales pre-entrenadas (modelo FER2013) como método principal, con análisis
-    geométrico de características faciales como sistema de respaldo cuando el modelo no
-    está disponible. Soporta clasificación en 7 categorías emocionales estándar.
+    convolucionales pre-entrenadas como método principal, con análisis geométrico de
+    características faciales como sistema de respaldo cuando el modelo no está disponible.
+    Soporta clasificación en 7 categorías emocionales estándar del dataset FER2013.
 
     Attributes:
-        EMOTIONS (List[str]): Lista de emociones detectables en orden correspondiente
-            a las clases del modelo FER2013: ['Enfadado', 'Disgustado', 'Miedo',
-            'Feliz', 'Neutral', 'Triste', 'Sorprendido'].
-        model (Optional[keras.Model]): Modelo Keras cargado para clasificación mediante
-            redes convolucionales. None si no se pudo cargar.
-        model_loaded (bool): Indicador de si el modelo fue cargado exitosamente.
-        model_num_classes (int): Número de clases de salida del modelo cargado.
-            Por defecto 7 para compatibilidad con FER2013.
-        input_size (Tuple[int, int]): Dimensiones de entrada requeridas por el modelo
-            en formato (width, height). Por defecto (48, 48) píxeles.
+        EMOTIONS: Lista de emociones detectables en orden correspondiente a las clases
+            del modelo FER2013: ['Enfadado', 'Disgustado', 'Miedo', 'Feliz', 'Neutral',
+            'Triste', 'Sorprendido']
+        model: Modelo Keras cargado para clasificación mediante redes convolucionales.
+            None si no se pudo cargar
+        model_loaded: Indicador de si el modelo fue cargado exitosamente
+        model_num_classes: Número de clases de salida del modelo cargado.
+            Por defecto 7 para compatibilidad con FER2013
+        input_size: Dimensiones de entrada requeridas por el modelo en formato
+            (width, height). Por defecto (48, 48) píxeles
     """
 
     EMOTIONS = ['Enfadado', 'Disgustado', 'Miedo', 'Feliz', 'Neutral', 'Triste', 'Sorprendido']
@@ -53,7 +67,7 @@ class EmotionDetector:
         Args:
             model_path: Ruta completa al archivo del modelo Keras (.h5 o SavedModel).
                 Si es None o el archivo no existe, el detector operará exclusivamente
-                con análisis geométrico sin capacidades de aprendizaje profundo.
+                con análisis geométrico
 
         Notes:
             Requisitos para uso de modelos CNN:
@@ -62,11 +76,8 @@ class EmotionDetector:
                 - Entrada en escala de grises de dimensiones configurables
 
             Durante la carga se suprimen warnings de TensorFlow mediante configuración
-            del logger. Si el modelo tiene número de clases diferente a 7, se ajusta
-            automáticamente la lista de emociones truncándola al número disponible.
-
-            El modelo se carga sin compilación (compile=False) ya que solo se utiliza
-            para inferencia, no para entrenamiento adicional.
+            del logger. El modelo se carga sin compilación (compile=False) ya que solo
+            se utiliza para inferencia, no para entrenamiento adicional.
         """
         self.model = None
         self.model_loaded = False
@@ -111,29 +122,28 @@ class EmotionDetector:
         todas las clases emocionales.
 
         Args:
-            face_region: Imagen recortada de la región facial en formato BGR (OpenCV)
-                como numpy array con dimensiones (H, W, 3).
+            face_region: Imagen recortada de la región facial en formato BGR como numpy
+                array con dimensiones (H, W, 3)
             face_landmarks: Array numpy opcional con coordenadas de puntos faciales
                 landmarks para análisis geométrico. Solo utilizado cuando el modelo
-                CNN no está disponible. None si no se requiere análisis geométrico.
+                CNN no está disponible
 
         Returns:
             Diccionario con resultados completos de detección emocional:
-                emotion (str): Emoción detectada con mayor probabilidad.
-                confidence (float): Nivel de confianza de la predicción en rango
-                    [0.0, 1.0] redondeado a 3 decimales.
-                all_emotions (Dict[str, float]): Distribución de probabilidades para
-                    todas las emociones posibles, mapeando nombre de emoción a
-                    probabilidad redondeada a 3 decimales.
-                method (str): Método utilizado para detección, valores posibles:
-                    "keras_model" para CNN o "geometric_analysis" para análisis
-                    heurístico.
+                emotion: Emoción detectada con mayor probabilidad
+                confidence: Nivel de confianza de la predicción en rango [0.0, 1.0]
+                    redondeado a 3 decimales
+                all_emotions: Distribución de probabilidades para todas las emociones
+                    posibles, mapeando nombre de emoción a probabilidad redondeada a
+                    3 decimales
+                method: Método utilizado para detección, valores posibles "keras_model"
+                    para CNN o "geometric_analysis" para análisis heurístico
 
         Notes:
-            Si la región facial está vacía (size == 0) o el procesamiento falla,
-            retorna emoción "Neutral" con confianza 1.0 por defecto. El método
-            selecciona automáticamente entre detección por CNN (si modelo disponible)
-            o análisis geométrico basándose en el estado de carga del modelo.
+            Si la región facial está vacía o el procesamiento falla, retorna emoción
+            "Neutral" con confianza 1.0 por defecto. El método selecciona automáticamente
+            entre detección por CNN o análisis geométrico basándose en el estado de carga
+            del modelo.
         """
         if self.model_loaded and self.model is not None:
             return self._detect_with_model(face_region)
@@ -144,18 +154,18 @@ class EmotionDetector:
         """
         Detecta emoción mediante red neuronal convolucional pre-entrenada.
 
-        Preprocesa la región facial mediante pipeline estándar (redimensionado a
-        dimensiones del modelo, conversión a escala de grises, normalización a
-        rango [0.0, 1.0]) y realiza inferencia con el modelo Keras cargado. Incluye
-        múltiples validaciones de seguridad para prevenir errores dimensionales.
+        Preprocesa la región facial mediante pipeline estándar (redimensionado,
+        conversión a escala de grises, normalización) y realiza inferencia con el
+        modelo Keras cargado. Incluye múltiples validaciones de seguridad para
+        prevenir errores dimensionales.
 
         Args:
-            face_region: Región facial en formato BGR (OpenCV) como numpy array.
+            face_region: Región facial en formato BGR como numpy array
 
         Returns:
             Diccionario con emoción detectada, nivel de confianza, distribución
             completa de probabilidades y método utilizado. En caso de error durante
-            inferencia, realiza fallback automático a detección geométrica.
+            inferencia, realiza fallback automático a detección geométrica
 
         Notes:
             Pipeline de preprocesamiento:
@@ -167,11 +177,6 @@ class EmotionDetector:
             La normalización es crítica para compatibilidad con modelos entrenados
             en FER2013 que esperan entrada en rango [0.0, 1.0]. La inferencia se
             ejecuta con verbose=0 para suprimir salida de progreso en consola.
-
-            Validaciones de seguridad:
-                - Verificación de dimensiones de predicción vs clases del modelo
-                - Validación de índice de emoción dentro de rango válido
-                - Manejo de arrays vacíos
         """
         try:
             if face_region.size == 0:
@@ -217,11 +222,11 @@ class EmotionDetector:
         Genera respuesta por defecto con emoción neutral.
 
         Utilizado como valor de retorno seguro cuando no es posible determinar la
-        emoción por otros métodos (imagen vacía, errores de procesamiento).
+        emoción por otros métodos.
 
         Returns:
             Diccionario con emoción "Neutral" y confianza 1.0, más distribución
-            donde todas las emociones tienen probabilidad 0.0 excepto Neutral con 1.0.
+            donde todas las emociones tienen probabilidad 0.0 excepto Neutral con 1.0
 
         Notes:
             Este método garantiza siempre un retorno válido y consistente con la
@@ -244,21 +249,19 @@ class EmotionDetector:
         heurísticas. Menos preciso que CNN pero funciona sin requerir modelos entrenados.
 
         Args:
-            face_region: Región facial en formato BGR.
-            face_landmarks: Puntos faciales opcionales (no utilizados actualmente pero
-                reservados para expansión futura con análisis de landmarks).
+            face_region: Región facial en formato BGR
+            face_landmarks: Puntos faciales opcionales, reservados para expansión futura
+                con análisis de landmarks
 
         Returns:
             Diccionario con emoción inferida, confianza estimada basada en certeza
             de las características detectadas, distribución de probabilidades y método
-            identificado como "geometric_analysis".
+            identificado como "geometric_analysis"
 
         Notes:
             El análisis geométrico evalúa:
-                - Región de boca: curvatura (sonrisa vs ceño), densidad de bordes,
-                  apertura estimada
-                - Región de ojos: apertura ocular, fruncimiento de cejas mediante
-                  gradientes
+                - Región de boca: curvatura, densidad de bordes, apertura estimada
+                - Región de ojos: apertura ocular, fruncimiento de cejas
 
             Mapeo heurístico de características a emociones:
                 - Curvatura positiva boca + ojos abiertos → Feliz
@@ -268,8 +271,7 @@ class EmotionDetector:
                 - Ojos muy abiertos + cejas levantadas → Miedo
 
             La confianza se calcula como función de la magnitud de las características
-            detectadas, normalizada a rango [0.0, 1.0]. Típicamente produce confianzas
-            entre 0.3-0.7 por la naturaleza heurística del método.
+            detectadas, normalizada a rango [0.0, 1.0].
         """
         if face_region.size == 0:
             return self._get_neutral_emotion()
@@ -333,19 +335,19 @@ class EmotionDetector:
 
         Evalúa curvatura de sonrisa/ceño mediante análisis de gradientes horizontales,
         calcula densidad de bordes para inferir tensión muscular, y estima apertura
-        mediante detección de regiones oscuras (cavidad bucal).
+        mediante detección de regiones oscuras.
 
         Args:
-            gray: Imagen facial completa en escala de grises como numpy array 2D.
+            gray: Imagen facial completa en escala de grises como numpy array 2D
 
         Returns:
             Diccionario con métricas de región bucal:
-                edge_density (float): Densidad normalizada de bordes detectados [0-1].
-                    Valores altos indican tensión o expresión marcada.
-                curvature (float): Curvatura estimada [-1, 1] donde valores positivos
-                    indican sonrisa (comisuras arriba) y negativos ceño (comisuras abajo).
-                openness (float): Apertura bucal estimada [0-1] basada en área de
-                    regiones oscuras en la mitad inferior de la región.
+                edge_density: Densidad normalizada de bordes detectados [0-1].
+                    Valores altos indican tensión o expresión marcada
+                curvature: Curvatura estimada [-1, 1] donde valores positivos
+                    indican sonrisa y negativos ceño
+                openness: Apertura bucal estimada [0-1] basada en área de
+                    regiones oscuras
 
         Notes:
             La región analizada comprende el 50%-90% de la altura facial (mitad inferior).
@@ -360,9 +362,6 @@ class EmotionDetector:
                 - Umbralización en 70 para aislar regiones oscuras (cavidad bucal)
                 - Mide área de píxeles oscuros en mitad inferior de región
                 - Normaliza por tamaño total de región analizada
-
-            La densidad de bordes se calcula mediante detector Canny con umbrales 50-150
-            y se normaliza dividiendo entre tamaño de región.
         """
         h, w = gray.shape
         mouth_region = gray[int(h * 0.5):int(h * 0.9), :]
@@ -397,37 +396,31 @@ class EmotionDetector:
         """
         Analiza características geométricas de la región ocular.
 
-        Evalúa apertura ocular mediante detección de áreas oscuras (pupilas y sombras
-        oculares) y analiza el fruncimiento de cejas mediante cálculo de ratio entre
-        gradientes verticales y horizontales en la región superior del rostro.
+        Evalúa apertura ocular mediante detección de áreas oscuras y analiza el
+        fruncimiento de cejas mediante cálculo de ratio entre gradientes verticales
+        y horizontales en la región superior del rostro.
 
         Args:
-            gray: Imagen facial completa en escala de grises como numpy array 2D.
+            gray: Imagen facial completa en escala de grises como numpy array 2D
 
         Returns:
             Diccionario con métricas de región ocular:
-                openness (float): Apertura ocular estimada [0-1] donde 0 indica ojos
-                    cerrados y 1 ojos muy abiertos. Calculado invirtiendo área oscura.
-                brow_furrow (float): Intensidad de fruncimiento de cejas [0-1] donde
-                    valores altos (>0.5) sugieren enfado, concentración o preocupación.
+                openness: Apertura ocular estimada [0-1] donde 0 indica ojos
+                    cerrados y 1 ojos muy abiertos
+                brow_furrow: Intensidad de fruncimiento de cejas [0-1] donde
+                    valores altos sugieren enfado, concentración o preocupación
 
         Notes:
-            La región analizada comprende del 20% al 50% de la altura facial (zona
-            superior donde se encuentran ojos y cejas).
+            La región analizada comprende del 20% al 50% de la altura facial.
 
             Cálculo de apertura ocular:
                 - Umbralización en 70 para detectar regiones oscuras (pupilas)
                 - Área oscura normalizada se invierte: apertura = 1 - área_oscura
-                - Asume que ojos cerrados tienen más área oscura que ojos abiertos
 
             Cálculo de fruncimiento de cejas:
                 - Gradientes Sobel en direcciones X (vertical) e Y (horizontal)
                 - Ratio = gradientes_verticales / (gradientes_horizontales + 1)
                 - Valores altos indican líneas verticales prominentes (cejas fruncidas)
-                - Se normaliza dividiendo por 2 y limitando a rango [0, 1]
-
-            Si la región está vacía, retorna valores por defecto: apertura 0.5 (neutral)
-            y fruncimiento 0.0 (sin fruncir).
         """
         h, w = gray.shape
 
@@ -457,27 +450,22 @@ class EmotionDetector:
         Detecta emociones para múltiples rostros en procesamiento batch.
 
         Procesa secuencialmente una lista de regiones faciales, aplicando detección
-        de emociones a cada una mediante el método configurado (CNN o geométrico).
-        Útil para análisis de escenas con múltiples personas.
+        de emociones a cada una mediante el método configurado. Útil para análisis
+        de escenas con múltiples personas.
 
         Args:
             face_regions: Lista de imágenes recortadas de rostros en formato BGR,
-                cada elemento es un numpy array independiente representando una cara.
+                cada elemento es un numpy array independiente representando una cara
 
         Returns:
             Lista de diccionarios con resultados de detección, uno por cada rostro
             en el mismo orden de entrada. Cada diccionario contiene emoción, confianza,
-            distribución de probabilidades y método utilizado.
+            distribución de probabilidades y método utilizado
 
         Notes:
             El procesamiento es secuencial (no paralelo) por simplicidad y para evitar
-            problemas de concurrencia con modelos Keras. Para grandes volúmenes de
-            rostros (>100) considerar implementación paralela usando multiprocessing
-            con múltiples instancias del modelo o procesamiento en GPU con batching
-            nativo de TensorFlow.
-
-            Todos los rostros en el batch se procesan con el mismo método (CNN o
-            geométrico) según disponibilidad del modelo cargado.
+            problemas de concurrencia con modelos Keras. Todos los rostros en el batch
+            se procesan con el mismo método según disponibilidad del modelo cargado.
         """
         results = []
         for face_region in face_regions:
@@ -493,20 +481,19 @@ def draw_emotion_label(frame: np.ndarray, box: Tuple[int, int, int, int],
 
     Superpone anotaciones visuales que incluyen un rectángulo de bounding box con
     color codificado según la emoción detectada, y una etiqueta de texto con el
-    nombre de la emoción y su porcentaje de confianza. El fondo de la etiqueta
-    es sólido para garantizar legibilidad.
+    nombre de la emoción y su porcentaje de confianza.
 
     Args:
-        frame: Frame de video donde dibujar las anotaciones en formato BGR (OpenCV)
-            como numpy array con dimensiones (H, W, 3). Se modifica in-place.
+        frame: Frame de vídeo donde dibujar las anotaciones en formato BGR como numpy
+            array con dimensiones (H, W, 3). Se modifica in-place
         box: Coordenadas del bounding box facial en formato (x1, y1, x2, y2) donde
-            (x1, y1) es la esquina superior izquierda y (x2, y2) la inferior derecha.
+            (x1, y1) es la esquina superior izquierda y (x2, y2) la inferior derecha
         emotion_data: Diccionario con resultados de detección emocional, debe contener
-            al menos las claves 'emotion' (str) y 'confidence' (float).
+            al menos las claves 'emotion' y 'confidence'
 
     Returns:
         Frame modificado con anotaciones visuales superpuestas. El array se modifica
-        in-place pero también se retorna para encadenamiento de funciones.
+        in-place pero también se retorna para encadenamiento de funciones
 
     Notes:
         Codificación de colores por emoción en formato BGR:
@@ -517,17 +504,13 @@ def draw_emotion_label(frame: np.ndarray, box: Tuple[int, int, int, int],
             - Miedo: magenta (255, 0, 255)
             - Disgustado: púrpura oscuro (128, 0, 128)
             - Neutral: gris claro (200, 200, 200)
-            - Default: blanco (255, 255, 255) para emociones no reconocidas
+            - Default: blanco (255, 255, 255)
 
         Elementos visuales:
-            - Rectángulo del bounding box: grosor 2 píxeles, color según emoción
+            - Rectángulo del bounding box: grosor 2 píxeles
             - Etiqueta de texto: formato "Emoción (XX%)" donde XX es confidence
-            - Fondo de etiqueta: rectángulo relleno del mismo color que el bounding box
-            - Texto: color negro (0, 0, 0) con grosor 2 para contraste
-            - Posición: sobre el bounding box con margen de 10 píxeles
-
-        La confianza se formatea como porcentaje entero sin decimales para simplificar
-        visualización.
+            - Fondo de etiqueta: rectángulo relleno del mismo color
+            - Texto: color negro (0, 0, 0) con grosor 2
     """
     x1, y1, x2, y2 = box
 
@@ -581,38 +564,30 @@ def visualize_emotion_distribution(emotion_data: Dict, width: int = 300,
 
     Args:
         emotion_data: Diccionario con distribución de emociones. Debe contener la
-            clave 'all_emotions' mapeando nombres de emociones a probabilidades.
-        width: Ancho de la imagen de visualización en píxeles. Por defecto 300px.
-            Se divide equitativamente entre todas las emociones.
-        height: Alto de la imagen de visualización en píxeles. Por defecto 200px.
-            Las barras se escalan proporcionalmente usando los 20px inferiores para
-            etiquetas.
+            clave 'all_emotions' mapeando nombres de emociones a probabilidades
+        width: Ancho de la imagen de visualización en píxeles. Por defecto 300px
+        height: Alto de la imagen de visualización en píxeles. Por defecto 200px
 
     Returns:
         Imagen RGB con gráfico de barras como numpy array con dimensiones
         (height, width, 3) y dtype uint8. Retorna imagen completamente negra si
-        emotion_data no contiene 'all_emotions' o está vacío.
+        emotion_data no contiene 'all_emotions' o está vacío
 
     Notes:
         Características visuales del gráfico:
             - Fondo: negro (0, 0, 0)
             - Barras: ancho = width / num_emociones con separación de 5px
             - Color de barras: gradiente verde→rojo basado en score
-                * Score alto (cerca de 1.0): verde brillante
-                * Score bajo (cerca de 0.0): rojo
+                * Score alto: verde brillante
+                * Score bajo: rojo
                 * Fórmula RGB: (0, 255*score, 255*(1-score))
-            - Etiquetas: texto blanco (255, 255, 255), primeros 3 caracteres
-              de cada emoción, posicionadas en los 20px inferiores
+            - Etiquetas: texto blanco, primeros 3 caracteres de cada emoción,
+              posicionadas en los 20px inferiores
             - Altura de barras: normalizada respecto a emoción con mayor score
-              para maximizar uso del espacio vertical disponible
 
-        Las etiquetas se abrevian a 3 caracteres para optimizar espacio horizontal
-        cuando hay muchas emociones. La normalización relativa (no absoluta) mejora
-        la visualización al escalar automáticamente las barras al espacio disponible
-        independientemente de si los scores son muy bajos o altos.
-
-        Útil para debugging, análisis de confianza del modelo, y visualización en
-        tiempo real de distribuciones emocionales ambiguas.
+        Las etiquetas se abrevian a 3 caracteres para optimizar espacio horizontal.
+        La normalización relativa mejora la visualización al escalar automáticamente
+        las barras al espacio disponible.
     """
     viz = np.zeros((height, width, 3), dtype=np.uint8)
 

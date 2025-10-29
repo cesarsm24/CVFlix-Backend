@@ -14,7 +14,7 @@ Architecture:
     Jerarquía de excepciones organizada por dominio funcional:
         - CVFlixException (base)
             - ModelNotLoadedException, ModelLoadException
-            - VideoException (base videos)
+            - VideoException (base vídeos)
                 - VideoNotFoundException
                 - InvalidVideoException
                 - VideoProcessingException
@@ -40,6 +40,20 @@ Architecture:
             - CacheException (base caché)
                 - CacheReadException
                 - CacheWriteException
+
+Usage:
+    from app.utils.exceptions import VideoNotFoundException
+
+    if not video_file.exists():
+        raise VideoNotFoundException(filename="video.mp4")
+
+    try:
+        process_video()
+    except CVFlixException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content=e.to_dict()
+        )
 """
 
 import logging
@@ -57,10 +71,10 @@ class CVFlixException(Exception):
     código HTTP y serialización a JSON para respuestas API.
 
     Attributes:
-        message (str): Mensaje descriptivo del error para el usuario.
-        details (Optional[str]): Detalles técnicos adicionales del error.
-        error_code (str): Código único de error para identificación programática.
-        status_code (int): Código HTTP sugerido para respuesta (por defecto 500).
+        message: Mensaje descriptivo del error para el usuario
+        details: Detalles técnicos adicionales del error
+        error_code: Código único de error para identificación programática
+        status_code: Código HTTP sugerido para respuesta (por defecto 500)
     """
 
     def __init__(
@@ -74,10 +88,10 @@ class CVFlixException(Exception):
         Inicializa excepción con logging automático.
 
         Args:
-            message: Mensaje principal del error orientado al usuario.
-            details: Información técnica adicional para debugging.
-            error_code: Código único de error. Por defecto "CVFLIX_ERROR".
-            status_code: Código HTTP sugerido para la respuesta.
+            message: Mensaje principal del error orientado al usuario
+            details: Información técnica adicional para debugging
+            error_code: Código único de error. Por defecto "CVFLIX_ERROR"
+            status_code: Código HTTP sugerido para la respuesta
 
         Notes:
             El error se registra automáticamente en logs al construir la excepción,
@@ -101,7 +115,7 @@ class CVFlixException(Exception):
 
         Returns:
             Diccionario con estructura estandarizada de error compatible
-            con respuestas API y eventos SSE.
+            con respuestas API y eventos SSE
 
         Notes:
             El formato retornado es consistente con ErrorResponse schema
@@ -118,8 +132,6 @@ class CVFlixException(Exception):
         """Representación string con código de error prefijado."""
         return f"[{self.error_code}] {self.message}"
 
-
-# ==================== EXCEPCIONES DE MODELOS ====================
 
 class ModelNotLoadedException(CVFlixException):
     """
@@ -155,16 +167,14 @@ class ModelLoadException(CVFlixException):
         )
 
 
-# ==================== EXCEPCIONES DE VIDEO ====================
-
 class VideoException(CVFlixException):
-    """Excepción base para errores relacionados con procesamiento de video."""
+    """Excepción base para errores relacionados con procesamiento de vídeo."""
     pass
 
 
 class VideoNotFoundException(VideoException):
     """
-    Se lanza cuando no se encuentra archivo de video especificado.
+    Se lanza cuando no se encuentra archivo de vídeo especificado.
 
     Código HTTP 404 indica recurso no encontrado. Puede ocurrir por eliminación
     del archivo, ruta incorrecta o permisos insuficientes.
@@ -172,7 +182,7 @@ class VideoNotFoundException(VideoException):
 
     def __init__(self, filename: str):
         super().__init__(
-            message=f"Video '{filename}' no encontrado",
+            message=f"Vídeo '{filename}' no encontrado",
             details="El archivo puede haber sido eliminado o la ruta es incorrecta",
             error_code="VIDEO_NOT_FOUND",
             status_code=404
@@ -181,7 +191,7 @@ class VideoNotFoundException(VideoException):
 
 class InvalidVideoException(VideoException):
     """
-    Se lanza cuando video no es válido o está corrupto.
+    Se lanza cuando vídeo no es válido o está corrupto.
 
     Código HTTP 400 indica error del cliente. Causas comunes: archivo corrupto,
     formato no soportado, headers inválidos o codificación incorrecta.
@@ -189,7 +199,7 @@ class InvalidVideoException(VideoException):
 
     def __init__(self, filename: str, reason: Optional[str] = None):
         super().__init__(
-            message=f"El video '{filename}' no es válido",
+            message=f"El vídeo '{filename}' no es válido",
             details=reason or "El archivo puede estar corrupto o no ser un formato soportado",
             error_code="INVALID_VIDEO",
             status_code=400
@@ -198,7 +208,7 @@ class InvalidVideoException(VideoException):
 
 class VideoProcessingException(VideoException):
     """
-    Se lanza cuando ocurre error durante procesamiento de video.
+    Se lanza cuando ocurre error durante procesamiento de vídeo.
 
     Excepción genérica para errores en pipeline de análisis que no tienen
     clasificación más específica. Útil para errores inesperados en análisis.
@@ -215,7 +225,7 @@ class VideoProcessingException(VideoException):
 
 class VideoCodecException(VideoException):
     """
-    Se lanza cuando codec de video no está soportado.
+    Se lanza cuando codec de vídeo no está soportado.
 
     OpenCV soporta codecs limitados según compilación. Formatos recomendados:
     MP4 (H.264), AVI, MOV, MKV. Codecs problemáticos: VP9, AV1, HEVC sin libs.
@@ -223,7 +233,7 @@ class VideoCodecException(VideoException):
 
     def __init__(self, codec: str):
         super().__init__(
-            message="Codec de video no soportado",
+            message="Codec de vídeo no soportado",
             details=f"El codec '{codec}' no está soportado. Usa MP4, AVI, MOV o MKV",
             error_code="UNSUPPORTED_CODEC",
             status_code=400
@@ -232,7 +242,7 @@ class VideoCodecException(VideoException):
 
 class VideoTooLargeException(VideoException):
     """
-    Se lanza cuando video excede tamaño máximo permitido.
+    Se lanza cuando vídeo excede tamaño máximo permitido.
 
     Código HTTP 413 indica payload demasiado grande. El límite previene
     agotamiento de memoria y tiempos de procesamiento excesivos.
@@ -240,14 +250,12 @@ class VideoTooLargeException(VideoException):
 
     def __init__(self, size_mb: float, max_size_mb: float):
         super().__init__(
-            message="El video es demasiado grande",
+            message="El vídeo es demasiado grande",
             details=f"Tamaño: {size_mb:.1f} MB, Máximo permitido: {max_size_mb:.1f} MB",
             error_code="VIDEO_TOO_LARGE",
             status_code=413
         )
 
-
-# ==================== EXCEPCIONES DE DETECCIÓN FACIAL ====================
 
 class FaceDetectionException(CVFlixException):
     """Excepción base para errores de detección y reconocimiento facial."""
@@ -256,16 +264,16 @@ class FaceDetectionException(CVFlixException):
 
 class NoFacesDetectedException(FaceDetectionException):
     """
-    Se lanza cuando no se detectan rostros en el video.
+    Se lanza cuando no se detectan rostros en el vídeo.
 
     El sistema requiere rostros visibles para análisis facial, reconocimiento
-    de actores y detección emocional. Videos sin personas no son procesables.
+    de actores y detección emocional. Vídeos sin personas no son procesables.
     """
 
     def __init__(self):
         super().__init__(
-            message="No se detectaron rostros en el video",
-            details="El video debe contener rostros visibles para el análisis",
+            message="No se detectaron rostros en el vídeo",
+            details="El vídeo debe contener rostros visibles para el análisis",
             error_code="NO_FACES_DETECTED",
             status_code=400
         )
@@ -304,8 +312,6 @@ class ActorEncodingException(FaceDetectionException):
             status_code=500
         )
 
-
-# ==================== EXCEPCIONES DE SERVICIOS EXTERNOS ====================
 
 class ExternalServiceException(CVFlixException):
     """Excepción base para errores de servicios externos (TMDB, APIs)."""
@@ -363,8 +369,6 @@ class TMDBAPIKeyException(TMDBException):
         )
 
 
-# ==================== EXCEPCIONES DE SSE ====================
-
 class SSEException(CVFlixException):
     """Excepción base para errores de comunicación Server-Sent Events."""
     pass
@@ -404,8 +408,6 @@ class SSEStreamException(SSEException):
         )
 
 
-# ==================== EXCEPCIONES DE CONFIGURACIÓN ====================
-
 class ConfigurationException(CVFlixException):
     """
     Se lanza cuando hay errores en configuración del sistema.
@@ -439,8 +441,6 @@ class MissingDependencyException(CVFlixException):
             status_code=500
         )
 
-
-# ==================== EXCEPCIONES DE ANÁLISIS ====================
 
 class AnalysisException(CVFlixException):
     """Excepción base para errores en analizadores cinematográficos."""
@@ -498,8 +498,6 @@ class LightingAnalysisException(AnalysisException):
         )
 
 
-# ==================== EXCEPCIONES DE CACHÉ ====================
-
 class CacheException(CVFlixException):
     """Excepción base para errores del sistema de caché."""
     pass
@@ -539,8 +537,6 @@ class CacheWriteException(CacheException):
         )
 
 
-# ==================== UTILIDADES ====================
-
 def handle_exception(exc: Exception) -> Dict[str, Any]:
     """
     Maneja cualquier excepción convirtiéndola a formato estándar.
@@ -549,11 +545,11 @@ def handle_exception(exc: Exception) -> Dict[str, Any]:
     excepciones nativas Python a diccionarios para respuestas JSON.
 
     Args:
-        exc: Excepción a convertir.
+        exc: Excepción a convertir
 
     Returns:
         Diccionario con estructura estandarizada de error compatible
-        con ErrorResponse schema.
+        con ErrorResponse schema
 
     Notes:
         Para excepciones CVFlix utiliza to_dict(). Para excepciones
@@ -581,8 +577,8 @@ def raise_for_status(condition: bool, exception: CVFlixException):
     Similar a assert pero con excepciones tipadas del dominio.
 
     Args:
-        condition: Condición a evaluar. Si True, lanza excepción.
-        exception: Excepción pre-construida a lanzar.
+        condition: Condición a evaluar. Si True, lanza excepción
+        exception: Excepción pre-construida a lanzar
 
     Notes:
         La excepción debe estar completamente construida antes de la llamada.

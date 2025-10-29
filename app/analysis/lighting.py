@@ -1,594 +1,416 @@
 """
-lighting_analyzer.py
+lighting.py
 
-Módulo para análisis cuantitativo de iluminación cinematográfica mediante procesamiento
-de histogramas, análisis espacial y cálculo de gradientes. Clasifica tipo de iluminación,
-evalúa exposición, contraste y dirección de luz principal.
+Análisis de iluminación cinematográfica mediante evaluación de histogramas,
+contraste y gradientes espaciales. Clasifica tipo de iluminación, exposición
+y dirección de luz dominante en frames de vídeo.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - opencv-python: Análisis de histogramas y gradientes
+    - numpy: Cálculos estadísticos
+    - app.config: Umbrales de iluminación
+
+Usage:
+    from app.analysis.lighting import LightingAnalyzer
+
+    analyzer = LightingAnalyzer()
+    analysis = analyzer.analyze(frame)
+
+    print(f"Tipo: {analysis['type']}")
+    print(f"Brillo: {analysis['brightness']}")
 """
 
 import cv2
 import numpy as np
-from typing import Dict, Tuple
-from enum import Enum
+from typing import Dict, Any, Optional, Tuple
 
-
-class LightingType(Enum):
-    """
-    Enumeración de tipos de iluminación cinematográfica.
-
-    Define categorías estándar de iluminación según teoría cinematográfica clásica,
-    basadas en niveles de brillo, contraste y uniformidad de distribución espacial.
-    """
-    HIGH_KEY = "High Key (Luz Alta)"
-    LOW_KEY = "Low Key (Luz Baja)"
-    NORMAL = "Iluminación Normal"
-    FLAT = "Iluminación Plana"
-    DRAMATIC = "Iluminación Dramática"
+from app.config import LIGHTING_CONFIG
 
 
 class LightingAnalyzer:
     """
-    Analizador cuantitativo de iluminación cinematográfica.
+    Analizador de iluminación cinematográfica.
 
-    Implementa conjunto de métricas para evaluación objetiva de características de
-    iluminación en frames de video, incluyendo análisis de exposición mediante
-    histogramas, medición de contraste por múltiples métodos, evaluación de
-    distribución espacial y determinación de dirección de luz mediante gradientes.
+    Evalúa características de iluminación mediante análisis de histogramas,
+    métricas estadísticas y gradientes espaciales para clasificar el tipo
+    de iluminación, estado de exposición y dirección de luz dominante.
 
-    Notes:
-        El análisis se realiza en espacio de grises para simplificar cálculos y
-        centrarse en características de luminancia independientes del color. Los
-        métodos implementados se basan en técnicas estándar de análisis de imagen
-        y teoría fotográfica.
+    Analiza:
+        - Tipo de iluminación (High Key, Low Key, Normal)
+        - Brillo promedio
+        - Contraste
+        - Exposición (subexpuesta, normal, sobreexpuesta)
+        - Dirección de luz
+        - Distribución de histograma
+
+    Attributes:
+        config: Configuración de iluminación desde config.py
     """
 
     def __init__(self):
-        """
-        Inicializa el analizador de iluminación.
+        """Inicializa el analizador de iluminación."""
+        self.config = LIGHTING_CONFIG
 
-        Constructor vacío incluido por consistencia de API y posible expansión futura
-        con parámetros de configuración o modelos pre-entrenados.
+    def analyze(self, frame: np.ndarray) -> Dict[str, Any]:
         """
-        pass
-
-    def analyze_lighting(self, frame: np.ndarray) -> Dict:
-        """
-        Realiza análisis completo de iluminación del frame.
-
-        Ejecuta pipeline de análisis que incluye conversión a espacios de color
-        apropiados, evaluación de múltiples características de iluminación, y
-        clasificación del tipo de iluminación según métricas calculadas.
+        Realiza análisis completo de iluminación.
 
         Args:
-            frame: Frame a analizar en formato BGR (OpenCV estándar) como numpy array
-                con dimensiones (H, W, 3).
+            frame: Frame BGR a analizar
 
         Returns:
-            Diccionario con análisis completo de iluminación:
-                lighting_type (str): Clasificación del tipo de iluminación según
-                    LightingType enum.
-                exposure (Dict): Análisis detallado de exposición con brillo medio,
-                    distribución de zonas tonales y detección de sobre/subexposición.
-                contrast (Dict): Métricas múltiples de contraste (desviación estándar,
-                    RMS, Michelson) y clasificación cualitativa.
-                distribution (Dict): Análisis de distribución espacial de luz con
-                    brillo por cuadrantes, varianza y uniformidad.
-                light_direction (Dict): Dirección de luz principal calculada mediante
-                    análisis de gradientes con ángulo y clasificación direccional.
+            Diccionario con análisis completo:
+                type: Tipo de iluminación ("High Key", "Low Key", "Normal")
+                brightness: Brillo promedio 0-255
+                contrast: Contraste 0-255
+                exposure: Estado de exposición ("underexposed", "normal", "overexposed")
+                light_direction: Dirección dominante de luz ("top", "bottom",
+                    "left", "right", "center")
+                histogram: Datos del histograma
+                dynamic_range: Rango dinámico 0-255
 
         Notes:
-            El análisis se realiza primero convirtiendo el frame a escala de grises
-            para enfocarse en luminancia. También se genera versión HSV aunque
-            actualmente no se utiliza (reservada para expansión futura con análisis
-            de temperatura de color).
-
-            Todas las métricas numéricas se redondean apropiadamente para balance
-            entre precisión y legibilidad en interfaces de usuario.
+            Análisis basado en conversión a escala de grises. Los umbrales son
+            configurables mediante config.py. Retorna valores por defecto en
+            caso de error.
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        exposure = self._analyze_exposure(gray)
-        contrast = self._analyze_contrast(gray)
-        distribution = self._analyze_light_distribution(gray)
-        lighting_type = self._determine_lighting_type(exposure, contrast, distribution)
-        light_direction = self._analyze_light_direction(gray)
+        brightness = self._calculate_brightness(gray)
+        contrast = self._calculate_contrast(gray)
+        histogram = self._calculate_histogram(gray)
+        dynamic_range = self._calculate_dynamic_range(histogram)
+
+        lighting_type = self._classify_lighting_type(brightness, contrast)
+        exposure = self._classify_exposure(brightness)
+        light_direction = self._detect_light_direction(gray)
 
         return {
-            "lighting_type": lighting_type.value,
-            "exposure": exposure,
+            "type": lighting_type,
+            "brightness": brightness,
             "contrast": contrast,
-            "distribution": distribution,
-            "light_direction": light_direction
+            "exposure": exposure,
+            "light_direction": light_direction,
+            "histogram": histogram,
+            "dynamic_range": dynamic_range
         }
 
-    def _analyze_exposure(self, gray: np.ndarray) -> Dict:
+    def _calculate_brightness(self, gray: np.ndarray) -> float:
         """
-        Analiza exposición de la imagen mediante histograma y estadísticas de brillo.
-
-        Calcula distribución tonal clasificando píxeles en zonas de sombras, medios
-        tonos y altas luces. Detecta sobre y subexposición mediante conteo de píxeles
-        en extremos del rango dinámico. Clasifica nivel de exposición global.
+        Calcula brillo promedio del frame.
 
         Args:
-            gray: Imagen en escala de grises como numpy array 2D con valores [0, 255].
+            gray: Frame en escala de grises
 
         Returns:
-            Diccionario con análisis de exposición:
-                mean_brightness (float): Brillo promedio en rango [0.0, 255.0].
-                std_brightness (float): Desviación estándar del brillo, indica
-                    variabilidad tonal.
-                level (str): Clasificación cualitativa del nivel de exposición.
-                    Valores: "Sobreexpuesta", "Brillante", "Normal", "Oscura",
-                    "Subexpuesta".
-                zones (Dict): Distribución proporcional en zonas tonales:
-                    - shadows [0, 85]: tercio inferior del rango dinámico
-                    - midtones [85, 170]: tercio medio
-                    - highlights [170, 255]: tercio superior
-                overexposed_pixels (float): Proporción de píxeles saturados (>=250)
-                    en rango [0.0, 1.0].
-                underexposed_pixels (float): Proporción de píxeles muy oscuros (<=5)
-                    en rango [0.0, 1.0].
+            Brillo promedio en rango 0-255
 
         Notes:
-            División de zonas tonales basada en sistema de zonas de Ansel Adams:
-                - Zona I-III (0-85): Sombras profundas y negros
-                - Zona IV-VI (85-170): Medios tonos y grises medios
-                - Zona VII-X (170-255): Altas luces y blancos
+            Utiliza valor medio de todos los píxeles:
+                - 0 = completamente negro
+                - 255 = completamente blanco
+                - ~128 = brillo medio
+        """
+        return float(np.mean(gray))
 
-            Umbrales de clasificación de exposición:
-                - Sobreexpuesta: brillo medio > 180
-                - Brillante: brillo medio > 140
-                - Normal: brillo medio > 100
-                - Oscura: brillo medio > 60
-                - Subexpuesta: brillo medio <= 60
+    def _calculate_contrast(self, gray: np.ndarray) -> float:
+        """
+        Calcula contraste del frame.
 
-            Detección de clipping:
-                - Sobreexposición: píxeles >= 250 (pérdida de detalle en altas luces)
-                - Subexposición: píxeles <= 5 (pérdida de detalle en sombras)
+        Args:
+            gray: Frame en escala de grises
 
-            El histograma se normaliza a proporciones [0.0, 1.0] para independencia
-            del tamaño de imagen.
+        Returns:
+            Contraste en rango 0-255
+
+        Notes:
+            Utiliza desviación estándar como medida de contraste.
+            Alto contraste indica gran diferencia entre luces y sombras.
+            Bajo contraste indica imagen plana.
+        """
+        return float(np.std(gray))
+
+    def _calculate_histogram(self, gray: np.ndarray) -> Dict[str, Any]:
+        """
+        Calcula histograma de luminosidad.
+
+        Args:
+            gray: Frame en escala de grises
+
+        Returns:
+            Diccionario con datos del histograma:
+                values: Array de 256 valores (conteo por nivel)
+                peaks: Picos del histograma
+                distribution: Distribución (shadows, midtones, highlights)
+
+        Notes:
+            Histograma de 256 bins (0-255). Detecta clipping en sombras/luces
+            y calcula distribución en tres zonas tonales:
+                - Shadows: 0-85 (33% inferior)
+                - Midtones: 85-170 (33% medio)
+                - Highlights: 170-255 (33% superior)
         """
         hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-        hist = hist.flatten() / hist.sum()
+        hist = hist.flatten()
 
-        mean_brightness = float(np.mean(gray))
-        std_brightness = float(np.std(gray))
+        peaks = []
+        for i in range(1, 255):
+            if hist[i] > hist[i-1] and hist[i] > hist[i+1]:
+                if hist[i] > np.max(hist) * 0.1:
+                    peaks.append(i)
 
-        shadows = np.sum(hist[:85])
-        midtones = np.sum(hist[85:170])
-        highlights = np.sum(hist[170:])
-
-        overexposed = np.sum(gray >= 250) / gray.size
-        underexposed = np.sum(gray <= 5) / gray.size
-
-        if mean_brightness > 180:
-            exposure_level = "Sobreexpuesta"
-        elif mean_brightness > 140:
-            exposure_level = "Brillante"
-        elif mean_brightness > 100:
-            exposure_level = "Normal"
-        elif mean_brightness > 60:
-            exposure_level = "Oscura"
-        else:
-            exposure_level = "Subexpuesta"
+        total_pixels = gray.size
+        shadows = np.sum(hist[:85]) / total_pixels * 100
+        midtones = np.sum(hist[85:170]) / total_pixels * 100
+        highlights = np.sum(hist[170:]) / total_pixels * 100
 
         return {
-            "mean_brightness": round(mean_brightness, 2),
-            "std_brightness": round(std_brightness, 2),
-            "level": exposure_level,
-            "zones": {
-                "shadows": round(float(shadows), 3),
-                "midtones": round(float(midtones), 3),
-                "highlights": round(float(highlights), 3)
-            },
-            "overexposed_pixels": round(float(overexposed), 4),
-            "underexposed_pixels": round(float(underexposed), 4)
+            "values": hist.tolist(),
+            "peaks": peaks,
+            "distribution": {
+                "shadows": round(shadows, 1),
+                "midtones": round(midtones, 1),
+                "highlights": round(highlights, 1)
+            }
         }
 
-    def _analyze_contrast(self, gray: np.ndarray) -> Dict:
+    def _calculate_dynamic_range(self, histogram: Dict[str, Any]) -> float:
         """
-        Analiza contraste mediante múltiples métricas complementarias.
+        Calcula rango dinámico del frame.
 
-        Implementa tres métodos estándar de medición de contraste que capturan
-        diferentes aspectos: variabilidad global (desviación estándar), contraste
-        local promedio (RMS) y rango dinámico relativo (Michelson). La combinación
-        proporciona evaluación robusta del contraste perceptual.
+        Mide la diferencia entre el punto más oscuro y más claro con presencia
+        significativa de píxeles.
 
         Args:
-            gray: Imagen en escala de grises como numpy array 2D con valores [0, 255].
+            histogram: Datos del histograma
 
         Returns:
-            Diccionario con análisis de contraste:
-                std_contrast (float): Contraste medido como desviación estándar de
-                    intensidades [0.0, ~100.0]. Valores altos indican mayor variabilidad.
-                rms_contrast (float): Contraste RMS (Root Mean Square) que mide
-                    desviación cuadrática media respecto a brillo medio [0.0, ~100.0].
-                michelson_contrast (float): Contraste de Michelson normalizado [0.0, 1.0]
-                    calculado como (max-min)/(max+min). Captura rango dinámico completo.
-                level (str): Clasificación cualitativa del contraste. Valores:
-                    "Muy Alto", "Alto", "Medio", "Bajo", "Muy Bajo".
-                is_high_contrast (bool): Bandera que indica si el contraste es alto
-                    (std_contrast > 60), útil para clasificación binaria rápida.
+            Rango dinámico en escala 0-255
 
         Notes:
-            Fórmulas matemáticas:
-                1. Contraste por desviación estándar (Weber contrast):
-                   std = sqrt(mean((I - mean(I))²))
-
-                2. Contraste RMS (equivalente a std para contraste global):
-                   RMS = sqrt(mean((I - mean(I))²))
-
-                3. Contraste de Michelson:
-                   C = (L_max - L_min) / (L_max + L_min)
-                   donde L_max y L_min son luminancias máxima y mínima
-
-            Umbrales de clasificación por std_contrast:
-                - Muy Alto: > 70 (escenas con iluminación dramática)
-                - Alto: > 50 (contraste cinematográfico típico)
-                - Medio: > 30 (contraste normal para video)
-                - Bajo: > 15 (iluminación suave o flat)
-                - Muy Bajo: <= 15 (escenas muy uniformes)
-
-            El método de desviación estándar es más sensible a variaciones locales,
-            mientras que Michelson captura mejor el rango dinámico global. Para
-            imágenes con distribución gaussiana, std_contrast ≈ rms_contrast.
+            Alto rango dinámico indica gran variedad tonal.
+            Bajo rango dinámico indica imagen con tonos comprimidos.
+            El umbral de significancia se establece en 1% del pico máximo.
         """
-        std_contrast = float(np.std(gray))
-        rms_contrast = float(np.sqrt(np.mean((gray - np.mean(gray)) ** 2)))
+        hist_values = np.array(histogram["values"])
 
-        max_val = float(np.max(gray))
-        min_val = float(np.min(gray))
-        michelson = (max_val - min_val) / (max_val + min_val) if (max_val + min_val) > 0 else 0
+        threshold = np.max(hist_values) * 0.01
 
-        if std_contrast > 70:
-            contrast_level = "Muy Alto"
-        elif std_contrast > 50:
-            contrast_level = "Alto"
-        elif std_contrast > 30:
-            contrast_level = "Medio"
-        elif std_contrast > 15:
-            contrast_level = "Bajo"
+        min_val = 0
+        for i in range(256):
+            if hist_values[i] > threshold:
+                min_val = i
+                break
+
+        max_val = 255
+        for i in range(255, -1, -1):
+            if hist_values[i] > threshold:
+                max_val = i
+                break
+
+        return float(max_val - min_val)
+
+    def _classify_lighting_type(self, brightness: float, contrast: float) -> str:
+        """
+        Clasifica el tipo de iluminación cinematográfica.
+
+        Args:
+            brightness: Brillo promedio
+            contrast: Contraste
+
+        Returns:
+            Tipo de iluminación:
+                "High Key": Iluminación brillante con bajo contraste
+                "Low Key": Iluminación oscura con alto contraste
+                "Normal": Iluminación equilibrada
+
+        Notes:
+            High Key: Común en comedias y publicidad. Caracterizado por tonos
+                brillantes, bajo contraste y pocas sombras profundas.
+            Low Key: Común en thrillers y cine noir. Caracterizado por tonos
+                oscuros, alto contraste y sombras dramáticas.
+            Los umbrales son configurables mediante config.py.
+        """
+        high_key_config = self.config.get("high_key", {})
+        low_key_config = self.config.get("low_key", {})
+
+        brightness_high = high_key_config.get("brightness_threshold", 160)
+        contrast_max = high_key_config.get("contrast_max", 50)
+
+        brightness_low = low_key_config.get("brightness_threshold", 80)
+        contrast_min = low_key_config.get("contrast_min", 60)
+
+        if brightness >= brightness_high and contrast < contrast_max:
+            return "High Key"
+        elif brightness <= brightness_low and contrast > contrast_min:
+            return "Low Key"
         else:
-            contrast_level = "Muy Bajo"
+            return "Normal"
 
-        return {
-            "std_contrast": round(std_contrast, 2),
-            "rms_contrast": round(rms_contrast, 2),
-            "michelson_contrast": round(michelson, 3),
-            "level": contrast_level,
-            "is_high_contrast": std_contrast > 60
-        }
-
-    def _analyze_light_distribution(self, gray: np.ndarray) -> Dict:
+    def _classify_exposure(self, brightness: float) -> str:
         """
-        Analiza distribución espacial de luz mediante partición en cuadrantes.
-
-        Divide la imagen en cuatro regiones y evalúa brillo promedio en cada una
-        para caracterizar cómo se distribuye la luz en el espacio del frame.
-        Calcula métricas de uniformidad y detecta concentración de luz.
+        Clasifica el estado de exposición.
 
         Args:
-            gray: Imagen en escala de grises como numpy array 2D.
+            brightness: Brillo promedio
 
         Returns:
-            Diccionario con análisis de distribución espacial:
-                quadrant_brightness (Dict[str, float]): Brillo promedio por cuadrante
-                    con claves: "top_left", "top_right", "bottom_left", "bottom_right".
-                    Valores en rango [0.0, 255.0].
-                variance (float): Varianza del brillo entre cuadrantes. Valores altos
-                    indican distribución no uniforme.
-                uniformity (float): Métrica de uniformidad normalizada [0.0, 1.0] donde
-                    1.0 indica distribución perfectamente uniforme.
-                brightest_area (str): Identificador del cuadrante más brillante.
-                darkest_area (str): Identificador del cuadrante más oscuro.
-                brightness_range (float): Diferencia entre cuadrante más brillante y
-                    más oscuro [0.0, 255.0].
-                is_uniform (bool): Bandera que indica distribución uniforme según
-                    umbral (varianza < 500).
+            Estado de exposición:
+                "underexposed": Subexpuesta (muy oscura)
+                "normal": Exposición correcta
+                "overexposed": Sobreexpuesta (muy brillante)
 
         Notes:
-            La partición en cuadrantes se realiza dividiendo exactamente por la mitad
-            en ambas dimensiones. Para imágenes con dimensiones impares, el píxel
-            central se asigna al cuadrante inferior/derecho.
+            Clasificación basada únicamente en brillo promedio.
+            Los umbrales son configurables mediante config.py.
+        """
+        exposure_config = self.config.get("exposure", {})
 
-            Cálculo de uniformidad:
-                uniformity = 1 - (variance / 10000)
-                La normalización por 10000 se basa en varianza esperada máxima para
-                imágenes de 8 bits (~100² = 10000 para distribución bimodal extrema).
-                Valores se limitan a rango [0.0, 1.0] mediante clipping.
+        underexposed_threshold = exposure_config.get("underexposed", 70)
+        overexposed_threshold = exposure_config.get("overexposed", 180)
 
-            Umbral de uniformidad:
-                - Varianza < 500: distribución considerada uniforme
-                - Corresponde a desviación estándar < ~22 en escala 0-255
-                - Apropiado para detección de iluminación flat
+        if brightness < underexposed_threshold:
+            return "underexposed"
+        elif brightness > overexposed_threshold:
+            return "overexposed"
+        else:
+            return "normal"
 
-            Interpretación direccional:
-                - Concentración superior → luz cenital o contraluz
-                - Concentración lateral → luz lateral o rembrandt
-                - Distribución uniforme → iluminación flat o múltiples fuentes
+    def _detect_light_direction(self, gray: np.ndarray) -> str:
+        """
+        Detecta dirección dominante de la luz mediante análisis de gradientes espaciales.
 
-            Útil para detectar esquemas de iluminación específicos y evaluar balance
-            visual de la composición.
+        Divide el frame en cuadrantes y compara el brillo promedio de cada región
+        para determinar desde qué dirección proviene la luz principal.
+
+        Args:
+            gray: Frame en escala de grises
+
+        Returns:
+            Dirección de luz:
+                "top": Luz desde arriba
+                "bottom": Luz desde abajo
+                "left": Luz desde la izquierda
+                "right": Luz desde la derecha
+                "center": Luz centrada o difusa
+
+        Notes:
+            El método divide el frame en 5 regiones: superior, inferior, izquierda,
+            derecha y centro. Compara el brillo promedio de cada región y selecciona
+            la más brillante como fuente de luz principal.
+
+            Si la diferencia entre regiones es menor a 20 unidades, se considera
+            iluminación difusa o centrada (sin dirección dominante).
+
+            Útil para análisis de esquemas de iluminación como three-point lighting.
         """
         h, w = gray.shape
 
-        h_mid = h // 2
-        w_mid = w // 2
+        top = np.mean(gray[:h//2, :])
+        bottom = np.mean(gray[h//2:, :])
+        left = np.mean(gray[:, :w//2])
+        right = np.mean(gray[:, w//2:])
+        center = np.mean(gray[h//4:3*h//4, w//4:3*w//4])
 
         quadrants = {
-            "top_left": gray[:h_mid, :w_mid],
-            "top_right": gray[:h_mid, w_mid:],
-            "bottom_left": gray[h_mid:, :w_mid],
-            "bottom_right": gray[h_mid:, w_mid:]
+            "top": top,
+            "bottom": bottom,
+            "left": left,
+            "right": right,
+            "center": center
         }
 
-        quadrant_brightness = {
-            name: float(np.mean(quad))
-            for name, quad in quadrants.items()
-        }
+        brightest = max(quadrants, key=quadrants.get)
 
-        brightness_values = list(quadrant_brightness.values())
-        variance = float(np.var(brightness_values))
+        values = list(quadrants.values())
+        if max(values) - min(values) < 20:
+            return "center"
 
-        max_quad = max(quadrant_brightness.items(), key=lambda x: x[1])
-        min_quad = min(quadrant_brightness.items(), key=lambda x: x[1])
-
-        brightness_range = max_quad[1] - min_quad[1]
-        uniformity = 1 - (variance / 10000)
-
-        return {
-            "quadrant_brightness": quadrant_brightness,
-            "variance": round(variance, 2),
-            "uniformity": round(max(0, min(1, uniformity)), 3),
-            "brightest_area": max_quad[0],
-            "darkest_area": min_quad[0],
-            "brightness_range": round(brightness_range, 2),
-            "is_uniform": variance < 500
-        }
-
-    def _determine_lighting_type(self, exposure: Dict, contrast: Dict,
-                                 distribution: Dict) -> LightingType:
-        """
-        Determina tipo de iluminación cinematográfica basándose en métricas calculadas.
-
-        Clasifica la iluminación según taxonomía estándar de cinematografía,
-        considerando combinación de brillo global, contraste y uniformidad de
-        distribución espacial.
-
-        Args:
-            exposure: Diccionario con análisis de exposición, requiere clave
-                'mean_brightness'.
-            contrast: Diccionario con análisis de contraste, requiere clave
-                'std_contrast'.
-            distribution: Diccionario con análisis de distribución espacial, requiere
-                clave 'uniformity'.
-
-        Returns:
-            Enum LightingType con clasificación del tipo de iluminación detectado.
-
-        Notes:
-            Reglas de clasificación (evaluadas en orden de prioridad):
-
-            1. High Key (Luz Alta):
-                - Condiciones: brillo > 150 AND contraste < 40
-                - Características: imagen brillante con transiciones suaves
-                - Uso típico: comedias, publicidad, programas infantiles
-                - Esquema de iluminación: múltiples fuentes suaves, fill alto
-
-            2. Low Key (Luz Baja):
-                - Condiciones: brillo < 80 AND contraste > 50
-                - Características: predominancia de sombras con altas luces puntuales
-                - Uso típico: noir, thriller, terror, drama oscuro
-                - Esquema: luz dura, ratio alto entre key y fill
-
-            3. Iluminación Dramática:
-                - Condiciones: contraste > 60 (independiente de brillo)
-                - Características: alto rango dinámico, transiciones abruptas
-                - Uso típico: cine dramático, escenas tensas
-                - Esquema: luz lateral o contraluz pronunciado
-
-            4. Iluminación Plana (Flat):
-                - Condiciones: uniformidad > 0.8 AND contraste < 30
-                - Características: distribución muy uniforme, sombras mínimas
-                - Uso típico: entrevistas, documentales, broadcast news
-                - Esquema: iluminación frontal difusa, múltiples fuentes suaves
-
-            5. Iluminación Normal:
-                - Condiciones: no cumple criterios anteriores
-                - Características: balance entre luz y sombra, contraste moderado
-                - Uso típico: narrativa general, escenas neutras
-                - Esquema: iluminación de tres puntos estándar
-
-            La clasificación sigue orden jerárquico donde características más
-            específicas (High/Low Key) tienen prioridad sobre generales (Normal).
-            El contraste dramático se evalúa antes que uniformidad por ser más
-            distintivo visualmente.
-        """
-        brightness = exposure["mean_brightness"]
-        contrast_val = contrast["std_contrast"]
-        uniformity = distribution["uniformity"]
-
-        if brightness > 150 and contrast_val < 40:
-            return LightingType.HIGH_KEY
-
-        if brightness < 80 and contrast_val > 50:
-            return LightingType.LOW_KEY
-
-        if contrast_val > 60:
-            return LightingType.DRAMATIC
-
-        if uniformity > 0.8 and contrast_val < 30:
-            return LightingType.FLAT
-
-        return LightingType.NORMAL
-
-    def _analyze_light_direction(self, gray: np.ndarray) -> Dict:
-        """
-        Analiza dirección de luz principal mediante análisis de gradientes.
-
-        Calcula gradientes de intensidad en direcciones X e Y, determina magnitud
-        y ángulo de transiciones tonales dominantes, y clasifica dirección de luz
-        en ocho categorías direccionales principales.
-
-        Args:
-            gray: Imagen en escala de grises como numpy array 2D.
-
-        Returns:
-            Diccionario con análisis de dirección de luz:
-                angle_degrees (float): Ángulo de dirección de luz en grados [-180, 180]
-                    donde 0° = derecha, 90° = abajo, ±180° = izquierda, -90° = arriba.
-                direction (str): Clasificación direccional en octantes. Valores posibles:
-                    "Derecha", "Inferior Derecha", "Inferior", "Inferior Izquierda",
-                    "Izquierda", "Superior Izquierda", "Superior", "Superior Derecha".
-                strength (float): Fuerza promedio de gradientes [0.0, ~255.0]. Valores
-                    altos indican transiciones tonales pronunciadas (luz direccional
-                    fuerte), valores bajos indican iluminación difusa.
-
-        Notes:
-            Algoritmo de análisis:
-                1. Cálculo de gradientes Sobel en X e Y con kernel 5x5
-                2. Magnitud de gradiente: mag = sqrt(gx² + gy²)
-                3. Ángulo de gradiente: angle = arctan2(gy, gx)
-                4. Promedio ponderado por magnitud para priorizar bordes fuertes
-                5. Conversión a grados y clasificación en octantes de 45°
-
-            Interpretación de ángulos:
-                - Gradientes apuntan en dirección de incremento de intensidad
-                - Dirección de luz calculada corresponde a zona más brillante
-                - Por ejemplo, gradiente hacia derecha indica luz desde derecha
-
-            Clasificación en octantes:
-                - [-22.5°, 22.5°): Derecha (horizontal positivo)
-                - [22.5°, 67.5°): Inferior Derecha (diagonal positiva)
-                - [67.5°, 112.5°): Inferior (vertical positivo)
-                - [112.5°, 157.5°): Inferior Izquierda
-                - [157.5°, 180°] y [-180°, -157.5°): Izquierda
-                - [-157.5°, -112.5°): Superior Izquierda
-                - [-112.5°, -67.5°): Superior
-                - [-67.5°, -22.5°): Superior Derecha
-
-            La fuerza del gradiente (strength) es indicador de dureza de luz:
-                - Valores altos (>50): luz dura con sombras definidas
-                - Valores medios (20-50): luz moderada
-                - Valores bajos (<20): luz muy difusa o múltiples fuentes
-
-            Limitaciones:
-                - Asume fuente de luz principal dominante
-                - Múltiples fuentes pueden promediar y cancelar direccionalidad
-                - Más efectivo con iluminación lateral o rembrandt que con frontal
-        """
-        grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
-        grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=5)
-
-        magnitude = np.sqrt(grad_x**2 + grad_y**2)
-        angle = np.arctan2(grad_y, grad_x)
-
-        weighted_angle = np.sum(angle * magnitude) / np.sum(magnitude) if np.sum(magnitude) > 0 else 0
-
-        angle_deg = float(np.degrees(weighted_angle))
-
-        if -22.5 <= angle_deg < 22.5:
-            direction = "Derecha"
-        elif 22.5 <= angle_deg < 67.5:
-            direction = "Inferior Derecha"
-        elif 67.5 <= angle_deg < 112.5:
-            direction = "Inferior"
-        elif 112.5 <= angle_deg < 157.5:
-            direction = "Inferior Izquierda"
-        elif -67.5 <= angle_deg < -22.5:
-            direction = "Superior Derecha"
-        elif -112.5 <= angle_deg < -67.5:
-            direction = "Superior"
-        elif -157.5 <= angle_deg < -112.5:
-            direction = "Superior Izquierda"
-        else:
-            direction = "Izquierda"
-
-        return {
-            "angle_degrees": round(angle_deg, 2),
-            "direction": direction,
-            "strength": round(float(np.mean(magnitude)), 2)
-        }
+        return brightest
 
 
-def visualize_lighting(frame: np.ndarray, lighting_info: Dict) -> np.ndarray:
+def visualize_lighting(
+    frame: np.ndarray,
+    lighting: Dict[str, Any]
+) -> np.ndarray:
     """
-    Dibuja overlay de información de iluminación sobre el frame.
+    Visualiza información de iluminación sobre el frame.
 
-    Renderiza datos de análisis de iluminación como texto con fondo sólido en la
-    esquina superior izquierda del frame para visualización en tiempo real o
-    debugging.
+    Dibuja indicador visual con información del tipo de iluminación, brillo
+    y exposición en la esquina superior del frame.
 
     Args:
-        frame: Frame donde dibujar información en formato BGR (OpenCV) como numpy
-            array con dimensiones (H, W, 3). Se modifica in-place.
-        lighting_info: Diccionario con resultados de análisis de iluminación,
-            típicamente retornado por analyze_lighting(). Debe contener claves:
-            'lighting_type', 'exposure', 'contrast', 'light_direction'.
+        frame: Frame BGR
+        lighting: Diccionario con análisis de iluminación
 
     Returns:
-        Frame modificado con overlay de información textual. El array se modifica
-        in-place pero también se retorna para encadenamiento de funciones.
+        Frame con indicador de iluminación superpuesto
 
     Notes:
         Elementos visuales:
-            - Posición: esquina superior izquierda con margen de 10px
-            - Espaciado vertical: 30px entre líneas
-            - Fondo: rectángulo negro sólido para legibilidad
-            - Texto: cian (0, 255, 255) con fuente FONT_HERSHEY_SIMPLEX
-            - Escala de fuente: 0.6
-            - Grosor: 2 píxeles
-
-        Información mostrada (4 líneas):
-            1. Tipo de iluminación cinematográfica
-            2. Nivel de exposición (Sobreexpuesta/Normal/Subexpuesta)
-            3. Nivel de contraste (Muy Alto/Alto/Medio/Bajo/Muy Bajo)
-            4. Dirección de luz principal
-
-        El fondo negro garantiza legibilidad sobre cualquier contenido del frame.
-        El color cian se eligió por buen contraste con mayoría de escenas y
-        asociación visual con información técnica.
-
-        Útil para:
-            - Monitoreo en tiempo real durante captura
-            - Debugging de algoritmos de análisis
-            - Demostraciones y visualizaciones educativas
-            - Validación de resultados de clasificación
+            - Rectángulo semi-transparente como fondo
+            - Texto con tipo de iluminación
+            - Valores de brillo y contraste
+            - Color codificado según exposición:
+                * Verde: exposición normal
+                * Amarillo: subexpuesta
+                * Rojo: sobreexpuesta
     """
-    h, w = frame.shape[:2]
+    frame_copy = frame.copy()
+    h, w = frame_copy.shape[:2]
 
-    texts = [
-        f"Iluminacion: {lighting_info['lighting_type']}",
-        f"Exposicion: {lighting_info['exposure']['level']}",
-        f"Contraste: {lighting_info['contrast']['level']}",
-        f"Direccion: {lighting_info['light_direction']['direction']}"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    thickness = 2
+
+    lighting_type = lighting['type']
+    brightness = lighting['brightness']
+    exposure = lighting['exposure']
+
+    color_map = {
+        'normal': (0, 255, 0),
+        'underexposed': (0, 255, 255),
+        'overexposed': (0, 0, 255)
+    }
+    color = color_map.get(exposure, (255, 255, 255))
+
+    info_lines = [
+        f"Lighting: {lighting_type}",
+        f"Brightness: {brightness:.1f}",
+        f"Exposure: {exposure}"
     ]
 
-    y_offset = 30
-    for i, text in enumerate(texts):
-        position = (10, y_offset + i * 30)
-
-        (text_w, text_h), baseline = cv2.getTextSize(
-            text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
-        )
+    overlay = frame_copy.copy()
+    y_offset = 10
+    for line in info_lines:
+        text_size = cv2.getTextSize(line, font, font_scale, thickness)[0]
         cv2.rectangle(
-            frame,
-            (position[0] - 5, position[1] - text_h - 5),
-            (position[0] + text_w + 5, position[1] + baseline + 5),
+            overlay,
+            (10, y_offset),
+            (10 + text_size[0] + 10, y_offset + text_size[1] + 10),
             (0, 0, 0),
             -1
         )
+        y_offset += text_size[1] + 20
 
+    cv2.addWeighted(overlay, 0.7, frame_copy, 0.3, 0, frame_copy)
+
+    y_offset = 30
+    for line in info_lines:
         cv2.putText(
-            frame, text, position,
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2
+            frame_copy,
+            line,
+            (15, y_offset),
+            font,
+            font_scale,
+            color,
+            thickness
         )
+        y_offset += 30
 
-    return frame
+    return frame_copy

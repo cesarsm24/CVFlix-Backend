@@ -2,12 +2,21 @@
 logger.py
 
 Sistema de logging centralizado para CVFlix con utilidades para logging
-estructurado de procesamiento de video y eventos del sistema.
+estructurado de procesamiento de vídeo y eventos del sistema.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Usage:
+    from app.utils.logger import CVFlixLogger
+
+    logger = CVFlixLogger.get_logger(__name__)
+    logger.info("Procesamiento iniciado")
+
+    CVFlixLogger.log_processing_start(logger, "video.mp4", 15000, 500.0)
+    CVFlixLogger.log_processing_end(logger, "video.mp4", 5000, 250.5)
 """
 
 import logging
@@ -21,11 +30,10 @@ class CVFlixLogger:
 
     Implementa patrón singleton por nombre de logger para evitar duplicación
     de handlers y configuración. Proporciona métodos de conveniencia para
-    logging estructurado de eventos de procesamiento de video.
+    logging estructurado de eventos de procesamiento de vídeo.
 
     Attributes:
-        _loggers (Dict[str, logging.Logger]): Cache de loggers por nombre
-            para reutilización de instancias.
+        _loggers: Cache de loggers por nombre para reutilización de instancias
 
     Notes:
         Los loggers se crean bajo demanda y se almacenan en cache para
@@ -42,23 +50,15 @@ class CVFlixLogger:
 
         Args:
             name: Nombre del logger, típicamente __name__ del módulo llamante
-                para reflejar jerarquía de paquetes.
 
         Returns:
-            Instancia de logging.Logger configurada y lista para uso.
-
-        Example:
-            >>> logger = CVFlixLogger.get_logger(__name__)
-            >>> logger.info("Processing started")
+            Instancia de logging.Logger configurada
 
         Notes:
             Los loggers se cachean por nombre para evitar duplicación. El
             nombre debería seguir convención de módulos Python para aprovechar
-            jerarquía de logging (e.g., "app.processing.video" permite
-            configurar nivel en "app.processing" afectando todos los submódulos).
-
-            El logger retornado hereda configuración de handlers y formatters
-            del logger raíz de la aplicación configurado en startup.
+            jerarquía de logging. El logger retornado hereda configuración de
+            handlers y formatters del logger raíz de la aplicación.
         """
         if name not in cls._loggers:
             logger = logging.getLogger(name)
@@ -70,28 +70,21 @@ class CVFlixLogger:
     def log_processing_start(cls, logger: logging.Logger, filename: str,
                              total_frames: int, duration: float):
         """
-        Registra inicio de procesamiento de video con formato estructurado.
+        Registra inicio de procesamiento de vídeo con formato estructurado.
 
         Args:
-            logger: Instancia de logger donde registrar el evento.
-            filename: Nombre del archivo de video a procesar.
-            total_frames: Número total de frames en el video.
-            duration: Duración del video en segundos.
-
-        Example:
-            >>> logger = CVFlixLogger.get_logger(__name__)
-            >>> CVFlixLogger.log_processing_start(
-            >>>     logger, "movie.mp4", 15000, 500.0
-            >>> )
+            logger: Instancia de logger donde registrar el evento
+            filename: Nombre del archivo de vídeo a procesar
+            total_frames: Número total de frames en el vídeo
+            duration: Duración del vídeo en segundos
 
         Notes:
-            Formato con separadores y emojis para identificación visual rápida
-            en logs. La información de frames y duración es crítica para estimar
-            tiempo de procesamiento y configurar estrategias de sampling.
+            Formato con separadores para identificación visual rápida en logs.
+            La información de frames y duración es crítica para estimar tiempo
+            de procesamiento y configurar estrategias de sampling.
 
-            Los números se formatean con separadores de miles (15,000) para
-            legibilidad en videos largos. La duración se redondea a 2 decimales
-            para precisión suficiente sin verbosidad.
+            Los números se formatean con separadores de miles para legibilidad.
+            La duración se redondea a 2 decimales para precisión suficiente.
         """
         logger.info("=" * 70)
         logger.info(f"Iniciando procesamiento: {filename}")
@@ -106,17 +99,10 @@ class CVFlixLogger:
         Registra finalización de procesamiento con métricas de rendimiento.
 
         Args:
-            logger: Instancia de logger donde registrar el evento.
-            filename: Nombre del archivo de video procesado.
+            logger: Instancia de logger donde registrar el evento
+            filename: Nombre del archivo de vídeo procesado
             frames_processed: Número de frames efectivamente procesados
-                (puede ser menor que total si hubo sampling o errores).
-            elapsed_time: Tiempo transcurrido en segundos desde inicio.
-
-        Example:
-            >>> logger = CVFlixLogger.get_logger(__name__)
-            >>> CVFlixLogger.log_processing_end(
-            >>>     logger, "movie.mp4", 5000, 250.5
-            >>> )
+            elapsed_time: Tiempo transcurrido en segundos desde inicio
 
         Notes:
             Calcula automáticamente FPS de procesamiento (frames/segundo) como
@@ -126,10 +112,8 @@ class CVFlixLogger:
                 - >30 fps: procesamiento ligero o hardware acelerado
 
             El cálculo de FPS maneja división por cero retornando 0 si
-            elapsed_time es 0 (caso teórico o errores de timing).
-
-            Los separadores visuales facilitan parsing de logs para extracción
-            de métricas y análisis de rendimiento del sistema.
+            elapsed_time es 0. Los separadores visuales facilitan parsing
+            de logs para extracción de métricas y análisis de rendimiento.
         """
         fps = frames_processed / elapsed_time if elapsed_time > 0 else 0
         logger.info("=" * 70)

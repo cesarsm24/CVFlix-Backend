@@ -8,6 +8,19 @@ Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - pydantic: Validación de datos y serialización
+
+Usage:
+    from app.schemas import VideoUploadResponse, FrameAnalysisResult
+
+    response = VideoUploadResponse(
+        success=True,
+        path="/uploads/video.mp4",
+        filename="video.mp4",
+        size=1024000
+    )
 """
 
 from pydantic import BaseModel, Field, validator
@@ -15,15 +28,13 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 
 
-# ==================== ENUMERACIONES ====================
-
 class ContentType(str, Enum):
     """
     Tipo de contenido en base de datos TMDB.
 
     Values:
-        MOVIE: Película cinematográfica.
-        TV: Serie de televisión.
+        MOVIE: Película cinematográfica
+        TV: Serie de televisión
     """
     MOVIE = "movie"
     TV = "tv"
@@ -34,9 +45,9 @@ class AnalysisPriority(str, Enum):
     Nivel de prioridad para procesamiento de análisis.
 
     Determina frecuencia de muestreo y profundidad de análisis:
-        HIGH: Análisis de cada frame con máximo detalle.
-        MEDIUM: Muestreo cada 2-3 frames con análisis estándar.
-        LOW: Muestreo cada 5-10 frames con análisis básico.
+        HIGH: Análisis de cada frame con máximo detalle
+        MEDIUM: Muestreo cada 2-3 frames con análisis estándar
+        LOW: Muestreo cada 5-10 frames con análisis básico
     """
     HIGH = "high"
     MEDIUM = "medium"
@@ -48,11 +59,11 @@ class MessageType(str, Enum):
     Tipos de eventos en protocolo Server-Sent Events (SSE).
 
     Values:
-        INFO: Información inicial de sesión y configuración.
-        FRAME: Datos de análisis de frame individual.
-        PROGRESS: Actualización de progreso de procesamiento.
-        DONE: Resultados finales y resumen de análisis completo.
-        ERROR: Notificación de error durante procesamiento.
+        INFO: Información inicial de sesión y configuración
+        FRAME: Datos de análisis de frame individual
+        PROGRESS: Actualización de progreso de procesamiento
+        DONE: Resultados finales y resumen de análisis completo
+        ERROR: Notificación de error durante procesamiento
 
     Notes:
         Los eventos SSE se transmiten desde servidor a cliente en un stream
@@ -67,19 +78,17 @@ class MessageType(str, Enum):
     ERROR = "error"
 
 
-# ==================== MODELOS BASE ====================
-
 class VideoInfo(BaseModel):
     """
-    Información técnica de archivo de video.
+    Información técnica de archivo de vídeo.
 
     Attributes:
-        width: Ancho del video en píxeles.
-        height: Alto del video en píxeles.
-        fps: Frames por segundo (frame rate).
-        total_frames: Número total de frames en el video.
-        duration: Duración total en segundos.
-        codec: Código FourCC del codec de video.
+        width: Ancho del vídeo en píxeles
+        height: Alto del vídeo en píxeles
+        fps: Frames por segundo (frame rate)
+        total_frames: Número total de frames en el vídeo
+        duration: Duración total en segundos
+        codec: Código FourCC del codec de vídeo
     """
     width: int
     height: int
@@ -103,14 +112,14 @@ class VideoInfo(BaseModel):
 
 class VideoUploadResponse(BaseModel):
     """
-    Respuesta tras subida exitosa de archivo de video.
+    Respuesta tras subida exitosa de archivo de vídeo.
 
     Attributes:
-        success: Flag de éxito de operación.
-        path: Ruta del archivo en servidor.
-        filename: Nombre del archivo almacenado.
-        size: Tamaño del archivo en bytes.
-        video_info: Metadatos técnicos extraídos del video.
+        success: Flag de éxito de operación
+        path: Ruta del archivo en servidor
+        filename: Nombre del archivo almacenado
+        size: Tamaño del archivo en bytes
+        video_info: Metadatos técnicos extraídos del vídeo.
     """
     success: bool
     path: str
@@ -124,14 +133,14 @@ class ContentSearchResponse(BaseModel):
     Respuesta de búsqueda de contenido en base de datos TMDB.
 
     Attributes:
-        found: Indica si se encontró coincidencia.
-        id: ID de TMDB del contenido.
-        type: Tipo de contenido (película o serie).
-        title: Título del contenido.
-        overview: Sinopsis descriptiva.
-        poster_path: Ruta relativa del poster en TMDB.
-        poster_url: URL completa del poster.
-        release_date: Fecha de estreno en formato ISO.
+        found: Indica si se encontró coincidencia
+        id: ID de TMDB del contenido
+        type: Tipo de contenido (película o serie)
+        title: Título del contenido
+        overview: Sinopsis descriptiva
+        poster_path: Ruta relativa del poster en TMDB
+        poster_url: URL completa del poster
+        release_date: Fecha de estreno en formato ISO
     """
     found: bool
     id: Optional[int] = None
@@ -143,17 +152,15 @@ class ContentSearchResponse(BaseModel):
     release_date: Optional[str] = None
 
 
-# ==================== MODELOS DE ANÁLISIS ====================
-
 class FaceBox(BaseModel):
     """
     Coordenadas de bounding box de rostro detectado.
 
     Attributes:
-        x1: Coordenada X de esquina superior izquierda.
-        y1: Coordenada Y de esquina superior izquierda.
-        x2: Coordenada X de esquina inferior derecha.
-        y2: Coordenada Y de esquina inferior derecha.
+        x1: Coordenada X de esquina superior izquierda
+        y1: Coordenada Y de esquina superior izquierda
+        x2: Coordenada X de esquina inferior derecha
+        y2: Coordenada Y de esquina inferior derecha
     """
     x1: int
     y1: int
@@ -166,10 +173,10 @@ class EmotionResult(BaseModel):
     Resultado de clasificación emocional de expresión facial.
 
     Attributes:
-        emotion: Emoción predominante detectada.
-        confidence: Nivel de confianza normalizado [0.0, 1.0].
-        all_emotions: Distribución completa de probabilidades por emoción.
-        method: Método utilizado ("keras_model" o "geometric_analysis").
+        emotion: Emoción predominante detectada
+        confidence: Nivel de confianza normalizado [0.0, 1.0]
+        all_emotions: Distribución completa de probabilidades por emoción
+        method: Método utilizado ("keras_model" o "geometric_analysis")
     """
     emotion: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -182,15 +189,15 @@ class FaceDetectionResult(BaseModel):
     Resultado completo de detección y reconocimiento facial.
 
     Attributes:
-        box: Coordenadas del bounding box [x1, y1, x2, y2].
-        recognized: Indica si el rostro fue reconocido como actor conocido.
-        actor_id: ID del actor si fue reconocido.
-        nombre: Nombre del actor reconocido.
-        personaje: Personaje que interpreta el actor.
-        similitud: Porcentaje de similitud con encoding de referencia [0-100].
-        emotion: Resultado de análisis emocional del rostro.
+        box: Coordenadas del bounding box [x1, y1, x2, y2]
+        recognized: Indica si el rostro fue reconocido como actor conocido
+        actor_id: ID del actor si fue reconocido
+        nombre: Nombre del actor reconocido
+        personaje: Personaje que interpreta el actor
+        similitud: Porcentaje de similitud con encoding de referencia [0-100]
+        emotion: Resultado de análisis emocional del rostro
     """
-    box: List[int] = Field(min_items=4, max_items=4)
+    box: List[int] = Field(min_length=4, max_length=4)
     recognized: bool
     actor_id: Optional[int] = None
     nombre: Optional[str] = None
@@ -204,11 +211,11 @@ class ShotAnalysisResult(BaseModel):
     Resultado de clasificación de tipo de plano cinematográfico.
 
     Attributes:
-        shot_type: Tipo de plano (e.g., "Primer Plano", "Plano Medio").
-        confidence: Nivel de confianza de la clasificación [0.0, 1.0].
-        face_height_ratio: Ratio altura_rostro/altura_frame.
-        face_area_ratio: Ratio área_rostro/área_frame.
-        people_detected: Número de personas detectadas en el frame.
+        shot_type: Tipo de plano
+        confidence: Nivel de confianza de la clasificación [0.0, 1.0]
+        face_height_ratio: Ratio altura_rostro/altura_frame
+        face_area_ratio: Ratio área_rostro/área_frame
+        people_detected: Número de personas detectadas en el frame
     """
     shot_type: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -222,10 +229,10 @@ class CompositionResult(BaseModel):
     Resultado de análisis de composición visual.
 
     Attributes:
-        rule_of_thirds: Evaluación de adherencia a regla de tercios.
-        symmetry: Métricas de simetría vertical y horizontal.
-        lines: Análisis de líneas dominantes detectadas.
-        balance: Evaluación de balance visual y distribución de pesos.
+        rule_of_thirds: Evaluación de adherencia a regla de tercios
+        symmetry: Métricas de simetría vertical y horizontal
+        lines: Análisis de líneas dominantes detectadas
+        balance: Evaluación de balance visual y distribución de pesos
     """
     rule_of_thirds: Dict[str, Any]
     symmetry: Dict[str, Any]
@@ -238,11 +245,11 @@ class LightingResult(BaseModel):
     Resultado de análisis de iluminación cinematográfica.
 
     Attributes:
-        lighting_type: Clasificación del tipo de iluminación.
-        exposure: Análisis de exposición y distribución tonal.
-        contrast: Métricas de contraste por múltiples métodos.
-        distribution: Distribución espacial de luz en cuadrantes.
-        light_direction: Dirección de luz principal calculada por gradientes.
+        lighting_type: Clasificación del tipo de iluminación
+        exposure: Análisis de exposición y distribución tonal
+        contrast: Métricas de contraste por múltiples métodos
+        distribution: Distribución espacial de luz en cuadrantes
+        light_direction: Dirección de luz principal calculada por gradientes
     """
     lighting_type: str
     exposure: Dict[str, Any]
@@ -256,10 +263,10 @@ class ColorAnalysisResult(BaseModel):
     Resultado de análisis cromático del frame.
 
     Attributes:
-        dominant_colors: Lista de colores dominantes con RGB, hex y porcentajes.
-        temperature: Análisis de temperatura de color (cálido/frío).
+        dominant_colors: Lista de colores dominantes con RGB, hex y porcentajes
+        temperature: Análisis de temperatura de color (cálido/frío)
         color_scheme: Clasificación de esquema cromático (monocromático,
-            complementario, etc.).
+            complementario, etc.)
     """
     dominant_colors: List[Dict[str, Any]]
     temperature: Dict[str, Any]
@@ -271,11 +278,11 @@ class CameraMovementResult(BaseModel):
     Resultado de análisis de movimiento de cámara.
 
     Attributes:
-        movement_type: Tipo de movimiento detectado (pan, tilt, zoom, etc.).
-        confidence: Nivel de confianza de la clasificación [0.0, 1.0].
-        stability: Métricas de estabilidad de cámara.
-        is_moving: Flag booleano indicando si hay movimiento significativo.
-        intensity: Intensidad del movimiento en escala [0.0, 100.0].
+        movement_type: Tipo de movimiento detectado (pan, tilt, zoom, etc.)
+        confidence: Nivel de confianza de la clasificación [0.0, 1.0]
+        stability: Métricas de estabilidad de cámara
+        is_moving: Flag booleano indicando si hay movimiento significativo
+        intensity: Intensidad del movimiento en escala [0.0, 100.0]
     """
     movement_type: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -284,20 +291,18 @@ class CameraMovementResult(BaseModel):
     intensity: float = Field(ge=0.0, le=100.0)
 
 
-# ==================== MODELOS DE RESULTADOS ====================
-
 class ActorInfo(BaseModel):
     """
-    Información agregada de actor detectado en el video.
+    Información agregada de actor detectado en el vídeo.
 
     Attributes:
-        actor_id: Identificador único del actor.
-        nombre: Nombre completo del actor.
-        personaje: Personaje que interpreta.
-        foto_url: URL de fotografía de referencia.
-        detecciones: Número de frames donde fue detectado.
-        similitud: Similitud promedio en todas las detecciones [0-100].
-        similitud_maxima: Similitud máxima alcanzada [0-100].
+        actor_id: Identificador único del actor
+        nombre: Nombre completo del actor
+        personaje: Personaje que interpreta
+        foto_url: URL de fotografía de referencia
+        detecciones: Número de frames donde fue detectado
+        similitud: Similitud promedio en todas las detecciones [0-100]
+        similitud_maxima: Similitud máxima alcanzada [0-100]
     """
     actor_id: int
     nombre: str
@@ -317,14 +322,14 @@ class FrameAnalysisResult(BaseModel):
     colores y movimiento de cámara.
 
     Attributes:
-        frame_number: Índice del frame en la secuencia.
-        faces: Lista de rostros detectados con reconocimiento y emociones.
-        shot_type: Clasificación del tipo de plano.
-        composition: Análisis de composición visual.
-        lighting: Análisis de iluminación cinematográfica.
-        colors: Análisis cromático y temperatura de color.
-        camera_movement: Análisis de movimiento de cámara.
-        emotions: Lista de emociones detectadas en el frame.
+        frame_number: Índice del frame en la secuencia
+        faces: Lista de rostros detectados con reconocimiento y emociones
+        shot_type: Clasificación del tipo de plano
+        composition: Análisis de composición visual
+        lighting: Análisis de iluminación cinematográfica
+        colors: Análisis cromático y temperatura de color
+        camera_movement: Análisis de movimiento de cámara
+        emotions: Lista de emociones detectadas en el frame
     """
     frame_number: int
     faces: List[FaceDetectionResult]
@@ -341,14 +346,14 @@ class VideoProcessingInfo(BaseModel):
     Información inicial enviada al inicio de procesamiento por SSE.
 
     Attributes:
-        type: Tipo de mensaje ("info").
-        total_frames: Número total de frames a procesar.
-        fps: Frame rate del video.
-        duration: Duración total en segundos.
-        actors_loaded: Número de actores cargados para reconocimiento.
-        models_ready: Indica si todos los modelos están listos.
-        poster_url: URL del poster del contenido si está disponible.
-        optimizations: Configuración de optimizaciones aplicadas.
+        type: Tipo de mensaje ("info")
+        total_frames: Número total de frames a procesar
+        fps: Frame rate del vídeo
+        duration: Duración total en segundos
+        actors_loaded: Número de actores cargados para reconocimiento
+        models_ready: Indica si todos los modelos están listos
+        poster_url: URL del poster del contenido si está disponible
+        optimizations: Configuración de optimizaciones aplicadas
     """
     type: str = "info"
     total_frames: int
@@ -365,10 +370,10 @@ class ProgressUpdate(BaseModel):
     Actualización de progreso durante procesamiento.
 
     Attributes:
-        type: Tipo de mensaje ("progress").
-        frame_number: Frame actual siendo procesado.
-        total_frames: Total de frames a procesar.
-        progress: Porcentaje de completitud [0.0, 100.0].
+        type: Tipo de mensaje ("progress")
+        frame_number: Frame actual siendo procesado
+        total_frames: Total de frames a procesar
+        progress: Porcentaje de completitud [0.0, 100.0]
     """
     type: str = "progress"
     frame_number: int
@@ -384,21 +389,21 @@ class FinalAnalysisResults(BaseModel):
     de características cinematográficas y datos para visualizaciones.
 
     Attributes:
-        type: Tipo de mensaje ("done").
-        total_frames_processed: Número de frames procesados exitosamente.
-        message: Mensaje de finalización.
-        detected_actors: Lista de actores detectados con estadísticas.
-        total_actors_detected: Conteo único de actores diferentes.
-        camera_summary: Resumen de tipos de movimiento de cámara.
-        shot_types_summary: Distribución de tipos de plano.
-        lighting_summary: Resumen de tipos de iluminación.
-        emotions_summary: Distribución de emociones detectadas.
-        color_analysis_summary: Resumen de análisis cromático.
-        composition_summary: Métricas agregadas de composición.
-        poster_url: URL del poster del contenido.
-        histogram_data: Datos para gráfico de histograma RGB.
-        camera_timeline: Timeline de movimientos de cámara.
-        composition_data: Datos temporales de métricas compositivas.
+        type: Tipo de mensaje ("done")
+        total_frames_processed: Número de frames procesados exitosamente
+        message: Mensaje de finalización
+        detected_actors: Lista de actores detectados con estadísticas
+        total_actors_detected: Conteo único de actores diferentes
+        camera_summary: Resumen de tipos de movimiento de cámara
+        shot_types_summary: Distribución de tipos de plano
+        lighting_summary: Resumen de tipos de iluminación
+        emotions_summary: Distribución de emociones detectadas
+        color_analysis_summary: Resumen de análisis cromático
+        composition_summary: Métricas agregadas de composición
+        poster_url: URL del poster del contenido
+        histogram_data: Datos para gráfico de histograma RGB
+        camera_timeline: Timeline de movimientos de cámara
+        composition_data: Datos temporales de métricas compositivas
     """
     type: str = "done"
     total_frames_processed: int
@@ -417,17 +422,15 @@ class FinalAnalysisResults(BaseModel):
     composition_data: Optional[Dict[str, Any]] = None
 
 
-# ==================== MODELOS DE MENSAJES ====================
-
 class ErrorResponse(BaseModel):
     """
     Respuesta estandarizada de error.
 
     Attributes:
-        type: Tipo de mensaje ("error").
-        message: Mensaje descriptivo del error.
-        details: Detalles adicionales del error.
-        error_code: Código de error para identificación programática.
+        type: Tipo de mensaje ("error")
+        message: Mensaje descriptivo del error
+        details: Detalles adicionales del error
+        error_code: Código de error para identificación programática
     """
     type: str = "error"
     message: str
@@ -440,10 +443,10 @@ class HealthCheckResponse(BaseModel):
     Respuesta de endpoint de health check.
 
     Attributes:
-        status: Estado general del sistema ("healthy" o "unhealthy").
-        models_loaded: Indica si modelos de IA están cargados.
-        services: Estado de servicios individuales.
-        uptime_seconds: Tiempo de actividad del servidor.
+        status: Estado general del sistema ("healthy" o "unhealthy")
+        models_loaded: Indica si modelos de IA están cargados
+        services: Estado de servicios individuales
+        uptime_seconds: Tiempo de actividad del servidor
     """
     status: str
     models_loaded: bool
@@ -451,22 +454,20 @@ class HealthCheckResponse(BaseModel):
     uptime_seconds: Optional[int] = None
 
 
-# ==================== MODELOS DE CONFIGURACIÓN ====================
-
 class ProcessingConfigResponse(BaseModel):
     """
     Configuración de procesamiento para el cliente.
 
-    Define parámetros de optimización y muestreo para procesamiento de video.
+    Define parámetros de optimización y muestreo para procesamiento de vídeo.
 
     Attributes:
-        face_detection_skip: Frames a saltar entre detecciones faciales.
-        full_analysis_skip: Frames a saltar entre análisis completos.
-        max_frame_width: Ancho máximo para redimensionado de frames.
-        jpeg_quality: Calidad JPEG para compresión [1-100].
-        compression_enabled: Flag de habilitación de compresión.
-        priority: Nivel de prioridad del análisis.
-        estimated_time: Estimación de tiempo de procesamiento.
+        face_detection_skip: Frames a saltar entre detecciones faciales
+        full_analysis_skip: Frames a saltar entre análisis completos
+        max_frame_width: Ancho máximo para redimensionado de frames
+        jpeg_quality: Calidad JPEG para compresión [1-100]
+        compression_enabled: Flag de habilitación de compresión
+        priority: Nivel de prioridad del análisis
+        estimated_time: Estimación de tiempo de procesamiento
     """
     face_detection_skip: int
     full_analysis_skip: int

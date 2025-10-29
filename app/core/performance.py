@@ -2,13 +2,34 @@
 performance.py
 
 Sistema de monitoreo de rendimiento y métricas en tiempo real para procesamiento
-de video. Implementa tracking de FPS, uso de memoria, tiempos por frame y
+de vídeo. Implementa tracking de FPS, uso de memoria, tiempos por frame y
 estadísticas agregadas por sesión.
 
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
 Version: 4.0.0
+
+Dependencies:
+    - psutil: Monitoreo de CPU y memoria del sistema
+    - dataclasses: Estructuras de datos para métricas
+
+Usage:
+    from app.core.performance import performance_monitor, FrameTimer
+
+    performance_monitor.start_session("video_123", total_frames=1000)
+
+    with FrameTimer("Face Detection") as timer:
+        faces = detect_faces(frame)
+
+    performance_monitor.record_frame(
+        session_id="video_123",
+        frame_number=42,
+        processing_time=timer.get_elapsed()
+    )
+
+    stats = performance_monitor.get_current_stats()
+    print(f"FPS: {stats['current_fps']}")
 """
 
 import time
@@ -18,7 +39,6 @@ from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import deque
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +49,13 @@ class FrameMetrics:
     Métricas de procesamiento para un frame individual.
 
     Attributes:
-        frame_number (int): Índice del frame en la secuencia de video.
-        processing_time (float): Tiempo total de procesamiento en segundos.
-        face_detection_time (Optional[float]): Tiempo específico de detección facial.
-        recognition_time (Optional[float]): Tiempo de reconocimiento de identidades.
-        analysis_time (Optional[float]): Tiempo de análisis cinematográfico.
-        memory_usage_mb (Optional[float]): Uso de memoria RAM en megabytes.
-        timestamp (datetime): Momento de captura de las métricas.
+        frame_number: Índice del frame en la secuencia de vídeo
+        processing_time: Tiempo total de procesamiento en segundos
+        face_detection_time: Tiempo específico de detección facial
+        recognition_time: Tiempo de reconocimiento de identidades
+        analysis_time: Tiempo de análisis cinematográfico
+        memory_usage_mb: Uso de memoria RAM en megabytes
+        timestamp: Momento de captura de las métricas
     """
     frame_number: int
     processing_time: float
@@ -52,16 +72,16 @@ class SessionMetrics:
     Métricas agregadas para sesión completa de procesamiento.
 
     Attributes:
-        session_id (str): Identificador único de la sesión.
-        start_time (datetime): Timestamp de inicio de procesamiento.
-        end_time (Optional[datetime]): Timestamp de finalización, None si activa.
-        total_frames (int): Número total de frames a procesar.
-        frames_processed (int): Contador de frames procesados hasta el momento.
-        total_processing_time (float): Suma acumulada de tiempos de procesamiento.
-        average_fps (float): FPS promedio calculado como frames/tiempo_total.
-        peak_memory_mb (float): Pico máximo de uso de memoria durante la sesión.
-        errors_count (int): Contador de errores durante procesamiento.
-        frame_metrics (List[FrameMetrics]): Histórico de métricas por frame.
+        session_id: Identificador único de la sesión
+        start_time: Timestamp de inicio de procesamiento
+        end_time: Timestamp de finalización, None si activa
+        total_frames: Número total de frames a procesar
+        frames_processed: Contador de frames procesados hasta el momento
+        total_processing_time: Suma acumulada de tiempos de procesamiento
+        average_fps: FPS promedio calculado como frames/tiempo_total
+        peak_memory_mb: Pico máximo de uso de memoria durante la sesión
+        errors_count: Contador de errores durante procesamiento
+        frame_metrics: Histórico de métricas por frame
     """
     session_id: str
     start_time: datetime
@@ -85,11 +105,11 @@ class PerformanceMonitor:
     deque con tamaño limitado para eficiencia de memoria.
 
     Attributes:
-        max_history (int): Tamaño máximo del buffer de histórico de tiempos.
-        frame_times (deque): Buffer circular con tiempos recientes de frames.
-        sessions (Dict[str, SessionMetrics]): Diccionario de todas las sesiones.
-        current_session (Optional[str]): ID de la sesión activa actualmente.
-        process (psutil.Process): Handle del proceso actual para monitoreo.
+        max_history: Tamaño máximo del buffer de histórico de tiempos
+        frame_times: Buffer circular con tiempos recientes de frames
+        sessions: Diccionario de todas las sesiones
+        current_session: ID de la sesión activa actualmente
+        process: Handle del proceso actual para monitoreo
     """
 
     def __init__(self, max_history: int = 100):
@@ -99,7 +119,7 @@ class PerformanceMonitor:
         Args:
             max_history: Tamaño del buffer circular para histórico de tiempos
                 de frames. Limita uso de memoria manteniendo solo datos recientes.
-                Por defecto 100 frames.
+                Por defecto 100 frames
 
         Notes:
             Utiliza deque con maxlen para implementación eficiente de buffer
@@ -117,15 +137,15 @@ class PerformanceMonitor:
         Inicia nueva sesión de monitoreo de procesamiento.
 
         Args:
-            session_id: Identificador único para la sesión (típicamente video ID).
-            total_frames: Número total de frames que se procesarán. 0 si es desconocido.
+            session_id: Identificador único para la sesión
+            total_frames: Número total de frames que se procesarán. 0 si es desconocido
 
         Returns:
-            Objeto SessionMetrics recién creado para la sesión.
+            Objeto SessionMetrics recién creado para la sesión
 
         Notes:
             Establece la nueva sesión como current_session para registro automático.
-            Múltiples sesiones pueden coexistir pero solo una es "actual" a la vez.
+            Múltiples sesiones pueden coexistir pero solo una es actual a la vez.
         """
         session = SessionMetrics(
             session_id=session_id,
@@ -149,11 +169,11 @@ class PerformanceMonitor:
         Registra métricas de procesamiento de un frame individual.
 
         Args:
-            session_id: ID de la sesión a la que pertenece el frame.
-            frame_number: Índice del frame en la secuencia.
-            processing_time: Tiempo total de procesamiento en segundos.
+            session_id: ID de la sesión a la que pertenece el frame
+            frame_number: Índice del frame en la secuencia
+            processing_time: Tiempo total de procesamiento en segundos
             **kwargs: Métricas adicionales opcionales (face_detection_time,
-                recognition_time, analysis_time).
+                recognition_time, analysis_time)
 
         Notes:
             Actualiza automáticamente:
@@ -198,18 +218,14 @@ class PerformanceMonitor:
         Finaliza sesión de monitoreo y genera resumen de métricas.
 
         Args:
-            session_id: ID de la sesión a finalizar.
+            session_id: ID de la sesión a finalizar
 
         Returns:
-            SessionMetrics con datos completos de la sesión, o None si no existe.
+            SessionMetrics con datos completos de la sesión, o None si no existe
 
         Notes:
-            Calcula duración total y registra resumen con:
-                - Duración total en segundos
-                - Frames procesados vs total
-                - FPS promedio alcanzado
-                - Tiempo total de procesamiento
-                - Pico de memoria observado
+            Calcula duración total y registra resumen con duración, frames procesados,
+            FPS promedio, tiempo total y pico de memoria.
 
             La sesión permanece en el diccionario de sesiones para consulta
             posterior hasta que se ejecute cleanup_old_sessions().
@@ -239,21 +255,21 @@ class PerformanceMonitor:
 
         Returns:
             Diccionario con métricas instantáneas:
-                cpu_percent (float): Uso de CPU del sistema.
-                memory_total_gb (float): RAM total del sistema.
-                memory_available_gb (float): RAM disponible.
-                memory_percent (float): Porcentaje de RAM usado.
-                process_memory_mb (float): Memoria del proceso actual.
-                active_sessions (int): Número de sesiones activas.
-                avg_frame_time (float): Tiempo promedio de frames recientes.
-                min_frame_time (float): Tiempo mínimo observado.
-                max_frame_time (float): Tiempo máximo observado.
-                current_fps (float): FPS estimado de frames recientes.
+                cpu_percent: Uso de CPU del sistema
+                memory_total_gb: RAM total del sistema
+                memory_available_gb: RAM disponible
+                memory_percent: Porcentaje de RAM usado
+                process_memory_mb: Memoria del proceso actual
+                active_sessions: Número de sesiones activas
+                avg_frame_time: Tiempo promedio de frames recientes
+                min_frame_time: Tiempo mínimo observado
+                max_frame_time: Tiempo máximo observado
+                current_fps: FPS estimado de frames recientes
 
         Notes:
             Utiliza interval=0.1 en cpu_percent para balance entre precisión
             y overhead. Las estadísticas de frames se calculan solo sobre el
-            buffer circular reciente (últimos max_history frames).
+            buffer circular reciente.
         """
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
@@ -273,7 +289,8 @@ class PerformanceMonitor:
                 "avg_frame_time": round(sum(self.frame_times) / len(self.frame_times), 3),
                 "min_frame_time": round(min(self.frame_times), 3),
                 "max_frame_time": round(max(self.frame_times), 3),
-                "current_fps": round(len(self.frame_times) / sum(self.frame_times), 2) if sum(self.frame_times) > 0 else 0
+                "current_fps": round(len(self.frame_times) / sum(self.frame_times), 2) if sum(
+                    self.frame_times) > 0 else 0
             })
 
         return stats
@@ -284,7 +301,7 @@ class PerformanceMonitor:
 
         Returns:
             Diccionario extendido con estadísticas del sistema más información
-            detallada de sesiones activas y completadas.
+            detallada de sesiones activas y completadas
 
         Notes:
             Combina resultados de get_current_stats() con agregados de sesiones
@@ -316,12 +333,12 @@ class PerformanceMonitor:
         Genera reporte detallado de métricas de una sesión específica.
 
         Args:
-            session_id: ID de la sesión para generar reporte.
+            session_id: ID de la sesión para generar reporte
 
         Returns:
             Diccionario con reporte completo o None si sesión no existe.
             Incluye estadísticas agregadas, tasas de completitud y análisis
-            de tiempos de procesamiento.
+            de tiempos de procesamiento
 
         Notes:
             Calcula estadísticas descriptivas (promedio, mínimo, máximo) de
@@ -365,7 +382,7 @@ class PerformanceMonitor:
         Registra error durante procesamiento de sesión.
 
         Args:
-            session_id: ID de la sesión donde ocurrió el error.
+            session_id: ID de la sesión donde ocurrió el error
 
         Notes:
             Incrementa contador de errores para análisis de tasa de fallos.
@@ -380,7 +397,7 @@ class PerformanceMonitor:
 
         Args:
             max_age_hours: Edad máxima en horas para retener sesiones.
-                Por defecto 24 horas.
+                Por defecto 24 horas
 
         Notes:
             Solo elimina sesiones finalizadas (end_time != None). Las sesiones
@@ -406,14 +423,13 @@ class FrameTimer:
     """
     Context manager para medición de tiempo de operaciones.
 
-    Usage:
-        >>> with FrameTimer("Color Analysis") as timer:
-        >>>     analyze_colors(frame)
-        >>> elapsed = timer.get_elapsed()
+    Registra automáticamente warnings para operaciones lentas (>0.5s).
+    Útil para identificar cuellos de botella en pipeline de procesamiento.
 
-    Notes:
-        Registra automáticamente warnings para operaciones lentas (>0.5s).
-        Útil para identificar cuellos de botella en pipeline de procesamiento.
+    Attributes:
+        name: Etiqueta descriptiva para la operación
+        start_time: Timestamp de inicio de medición
+        elapsed: Tiempo transcurrido en segundos
     """
 
     def __init__(self, name: str = "Operation"):
@@ -421,7 +437,7 @@ class FrameTimer:
         Inicializa timer con nombre descriptivo.
 
         Args:
-            name: Etiqueta descriptiva para la operación a medir.
+            name: Etiqueta descriptiva para la operación a medir
         """
         self.name = name
         self.start_time = None
@@ -454,12 +470,11 @@ class FrameTimer:
 
         Returns:
             Tiempo en segundos. Si el timer está activo, retorna tiempo
-            actual. Si finalizó, retorna tiempo total medido.
+            actual. Si finalizó, retorna tiempo total medido
         """
         if self.elapsed is None:
             return time.time() - self.start_time if self.start_time else 0
         return self.elapsed
 
 
-# Instancia singleton global
 performance_monitor = PerformanceMonitor()
