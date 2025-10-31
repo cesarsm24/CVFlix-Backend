@@ -444,7 +444,7 @@ class VideoProcessor:
             n_colors: Número de colores dominantes a extraer
 
         Returns:
-            Lista de diccionarios con colores RGB, hex y nombre.
+            Lista de diccionarios con colores RGB, hex, percentage y nombre.
             Lista vacía si no hay datos de color acumulados
 
         Notes:
@@ -468,13 +468,32 @@ class VideoProcessor:
                 cv2.KMEANS_PP_CENTERS
             )
 
+            # Calcular porcentajes de cada cluster
+            counts = np.bincount(labels.flatten())
+            total_pixels = len(labels)
+
             palette = []
-            for center in centers:
+            # Ordenar por frecuencia descendente
+            indices = np.argsort(counts)[::-1]
+
+            for i in indices:
+                center = centers[i]
                 rgb = center.astype(int).tolist()
                 hex_color = "#{:02x}{:02x}{:02x}".format(*rgb)
+                percentage = (counts[i] / total_pixels) * 100
+
+                # Obtener nombre del color
+                try:
+                    import webcolors
+                    color_name = webcolors.rgb_to_name(tuple(rgb), spec='css3')
+                except (ValueError, AttributeError):
+                    color_name = "Unknown"
+
                 palette.append({
                     "rgb": rgb,
-                    "hex": hex_color
+                    "hex": hex_color,
+                    "percentage": round(float(percentage), 2),
+                    "name": color_name.capitalize()
                 })
 
             return palette
