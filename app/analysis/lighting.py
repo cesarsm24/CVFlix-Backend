@@ -283,55 +283,38 @@ class LightingAnalyzer:
 
     def _detect_light_direction(self, gray: np.ndarray) -> str:
         """
-        Detecta dirección dominante de la luz mediante análisis de gradientes espaciales.
+        Detecta dirección dominante de luz mediante análisis de gradientes de Sobel.
 
-        Divide el frame en cuadrantes y compara el brillo promedio de cada región
-        para determinar desde qué dirección proviene la luz principal.
-
-        Args:
-            gray: Frame en escala de grises
-
-        Returns:
-            Dirección de luz:
-                "top": Luz desde arriba
-                "bottom": Luz desde abajo
-                "left": Luz desde la izquierda
-                "right": Luz desde la derecha
-                "center": Luz centrada o difusa
-
-        Notes:
-            El método divide el frame en 5 regiones: superior, inferior, izquierda,
-            derecha y centro. Compara el brillo promedio de cada región y selecciona
-            la más brillante como fuente de luz principal.
-
-            Si la diferencia entre regiones es menor a 20 unidades, se considera
-            iluminación difusa o centrada (sin dirección dominante).
-
-            Útil para análisis de esquemas de iluminación como three-point lighting.
+        Método que analiza los cambios de intensidad en lugar de
+        solo comparar promedios de regiones, reduciendo falsos positivos causados
+        por objetos brillantes.
         """
-        h, w = gray.shape
+        # Calcular gradientes con Sobel
+        grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
+        grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=5)
 
-        top = np.mean(gray[:h//2, :])
-        bottom = np.mean(gray[h//2:, :])
-        left = np.mean(gray[:, :w//2])
-        right = np.mean(gray[:, w//2:])
-        center = np.mean(gray[h//4:3*h//4, w//4:3*w//4])
+        # Promediar gradientes (positivo = luz desde ese lado)
+        mean_grad_x = np.mean(grad_x)  # + = luz desde derecha, - = desde izquierda
+        mean_grad_y = np.mean(grad_y)  # + = luz desde abajo, - = desde arriba
 
-        quadrants = {
-            "top": top,
-            "bottom": bottom,
-            "left": left,
-            "right": right,
-            "center": center
-        }
+        # Umbral de sensibilidad (configurable)
+        threshold = self.config.get("light_direction", {}).get("threshold", 5.0)
 
-        brightest = max(quadrants, key=quadrants.get)
+        # Determinar dirección dominante
+        abs_x = abs(mean_grad_x)
+        abs_y = abs(mean_grad_y)
 
-        values = list(quadrants.values())
-        if max(values) - min(values) < 20:
+        # Si los gradientes son muy pequeños, luz difusa/centrada
+        if abs_x < threshold and abs_y < threshold:
             return "center"
 
-        return brightest
+        # Comparar ejes para determinar dirección dominante
+        if abs_x > abs_y:
+            # Luz lateral dominante
+            return "right" if mean_grad_x > 0 else "left"
+        else:
+            # Luz vertical dominante
+            return "bottom" if mean_grad_y > 0 else "top"
 
 
 def visualize_lighting(

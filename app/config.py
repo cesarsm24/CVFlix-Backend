@@ -384,9 +384,22 @@ COMPOSITION_CONFIG = {
 }
 
 LIGHTING_CONFIG = {
-    "high_key_threshold": 0.6,
-    "low_key_threshold": 0.4,
-    "contrast_threshold": 60
+    "high_key": {
+        "brightness_threshold": 160,
+        "contrast_max": 50
+    },
+    "low_key": {
+        "brightness_threshold": 80,
+        "contrast_min": 60
+    },
+    "exposure": {
+        "underexposed": 70,
+        "overexposed": 180
+    },
+    "light_direction": {
+        "threshold": 5.0,
+        "enabled": True
+    }
 }
 
 CAMERA_MOVEMENT_CONFIG = {

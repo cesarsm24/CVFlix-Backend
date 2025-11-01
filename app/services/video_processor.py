@@ -9,14 +9,15 @@ y movimiento de cámara.
 Author: César Sánchez Montes
 Course: Imagen Digital
 Year: 2025
-Version: 4.0.0
+Version: 4.1.0
 
 Features:
     - Análisis facial con reconocimiento de actores y detección emocional
     - Tracking inteligente de rostros entre frames consecutivos
     - Clasificación de tipos de plano cinematográfico
     - Evaluación de composición visual (regla de tercios, simetría, balance)
-    - Análisis de iluminación y temperatura de color
+    - Análisis de iluminación con métricas de exposición y zonas tonales
+    - Análisis cromático con temperatura de color y esquemas cromáticos
     - Detección de movimiento de cámara
     - Acumulación de estadísticas para visualizaciones agregadas
     - Manejo robusto de errores con logging detallado
@@ -47,7 +48,7 @@ Usage:
 import cv2
 import numpy as np
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from collections import Counter
 
 from ..analysis.face_detection import FaceDetector, FaceRecognizer, draw_face_box
@@ -93,6 +94,9 @@ class VideoProcessor:
         lighting_types_count: Contador de tipos de iluminación
         emotions_count: Contador de emociones detectadas
         composition_data: Datos temporales de métricas compositivas
+        lighting_data: Acumulador de datos de iluminación por frame
+        hue_differences: Acumulador de diferencias angulares de matiz
+        temperature_values: Acumulador de valores de temperatura cromática
         total_frames_analyzed: Contador total de frames procesados
     """
 
@@ -112,7 +116,7 @@ class VideoProcessor:
             automáticamente según FACE_DETECTION_METHOD en config.py.
         """
         logger.info("=" * 70)
-        logger.info("🎬 Inicializando VideoProcessor v4.0.0...")
+        logger.info("🎬 Inicializando VideoProcessor v4.1.0...")
         logger.info("=" * 70)
 
         try:
@@ -163,6 +167,10 @@ class VideoProcessor:
             'balance_scores': [],
             'lines_count': []
         }
+
+        self.lighting_data = []
+        self.hue_differences = []
+        self.temperature_values = []
 
         logger.info("=" * 70)
         logger.info("✅ VideoProcessor inicializado completamente")
@@ -395,6 +403,7 @@ class VideoProcessor:
                         results["lighting"] = lighting_result
                         if lighting_result:
                             self.lighting_types_count[lighting_result["type"]] += 1
+                            self.lighting_data.append(lighting_result)
                     except Exception as e:
                         logger.warning(f"⚠️ Error en análisis de iluminación frame {frame_number}: {e}")
 
@@ -413,6 +422,12 @@ class VideoProcessor:
 
                             for color in color_result["dominant_colors"]:
                                 self.global_colors.append(color["rgb"])
+
+                            if "color_scheme" in color_result and "max_hue_difference" in color_result["color_scheme"]:
+                                self.hue_differences.append(color_result["color_scheme"]["max_hue_difference"])
+
+                            if "temperature" in color_result and "value" in color_result["temperature"]:
+                                self.temperature_values.append(color_result["temperature"]["value"])
 
                             self.color_analyzer.accumulate_histogram(frame)
 
@@ -468,12 +483,10 @@ class VideoProcessor:
                 cv2.KMEANS_PP_CENTERS
             )
 
-            # Calcular porcentajes de cada cluster
             counts = np.bincount(labels.flatten())
             total_pixels = len(labels)
 
             palette = []
-            # Ordenar por frecuencia descendente
             indices = np.argsort(counts)[::-1]
 
             for i in indices:
@@ -482,7 +495,6 @@ class VideoProcessor:
                 hex_color = "#{:02x}{:02x}{:02x}".format(*rgb)
                 percentage = (counts[i] / total_pixels) * 100
 
-                # Obtener nombre del color
                 try:
                     import webcolors
                     color_name = webcolors.rgb_to_name(tuple(rgb), spec='css3')
@@ -502,6 +514,93 @@ class VideoProcessor:
             logger.warning(f"⚠️ Error calculando paleta global: {e}")
             return []
 
+    def _calculate_exposure_summary(self) -> Dict[str, Any]:
+        """
+        Calcula resumen de exposición y zonas tonales del video completo.
+
+        Analiza los datos acumulados de iluminación para generar estadísticas
+        de distribución tonal (sombras, medios tonos, altas luces) y métricas
+        de sobre/subexposición del vídeo completo.
+
+        Returns:
+            Diccionario con métricas de exposición:
+                zones: Distribución porcentual de zonas tonales (0-1)
+                    shadows: Porcentaje de sombras (0-85 en escala 0-255)
+                    midtones: Porcentaje de medios tonos (85-170)
+                    highlights: Porcentaje de altas luces (170-255)
+                overexposed_pixels: Ratio de frames sobreexpuestos (0-1)
+                underexposed_pixels: Ratio de frames subexpuestos (0-1)
+
+        Notes:
+            Si no hay datos de iluminación acumulados, retorna valores por
+            defecto equilibrados (33% cada zona, 0% sobre/subexposición).
+
+            Los valores de zonas se calculan promediando los histogramas de
+            todos los frames analizados. La sobre/subexposición se calcula
+            como ratio de frames que exceden los umbrales configurados.
+        """
+        if not self.lighting_data or len(self.lighting_data) == 0:
+            logger.warning("⚠️ No hay datos de iluminación para calcular exposición")
+            return {
+                "zones": {
+                    "shadows": 0.33,
+                    "midtones": 0.34,
+                    "highlights": 0.33
+                },
+                "overexposed_pixels": 0.0,
+                "underexposed_pixels": 0.0
+            }
+
+        try:
+            total_shadows = 0
+            total_midtones = 0
+            total_highlights = 0
+            overexposed_count = 0
+            underexposed_count = 0
+
+            for lighting in self.lighting_data:
+                hist_dist = lighting.get("histogram", {}).get("distribution", {})
+                total_shadows += hist_dist.get("shadows", 0)
+                total_midtones += hist_dist.get("midtones", 0)
+                total_highlights += hist_dist.get("highlights", 0)
+
+                exposure = lighting.get("exposure", "normal")
+                if exposure == "overexposed":
+                    overexposed_count += 1
+                elif exposure == "underexposed":
+                    underexposed_count += 1
+
+            num_frames = len(self.lighting_data)
+
+            avg_shadows = total_shadows / num_frames
+            avg_midtones = total_midtones / num_frames
+            avg_highlights = total_highlights / num_frames
+
+            overexposed_ratio = overexposed_count / num_frames
+            underexposed_ratio = underexposed_count / num_frames
+
+            return {
+                "zones": {
+                    "shadows": round(avg_shadows / 100, 3),
+                    "midtones": round(avg_midtones / 100, 3),
+                    "highlights": round(avg_highlights / 100, 3)
+                },
+                "overexposed_pixels": round(overexposed_ratio, 4),
+                "underexposed_pixels": round(underexposed_ratio, 4)
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error calculando resumen de exposición: {e}")
+            return {
+                "zones": {
+                    "shadows": 0.33,
+                    "midtones": 0.34,
+                    "highlights": 0.33
+                },
+                "overexposed_pixels": 0.0,
+                "underexposed_pixels": 0.0
+            }
+
     def get_final_results(self) -> Dict:
         """
         Genera resultados finales agregados del procesamiento completo.
@@ -518,6 +617,8 @@ class VideoProcessor:
             Los resultados incluyen:
                 - Lista de actores ordenada por número de detecciones
                 - Resúmenes de distribuciones porcentuales
+                - Métricas de exposición e iluminación
+                - Análisis cromático con temperatura y esquemas de color
                 - Paleta cromática global
                 - Histograma RGB acumulado
                 - Timeline de movimientos de cámara
@@ -553,6 +654,14 @@ class VideoProcessor:
             color_scheme_summary = self._get_percentage_summary(self.color_schemes_count)
 
             global_palette = self._calculate_global_palette(n_colors=5)
+
+            avg_hue_diff = 0.0
+            if self.hue_differences:
+                avg_hue_diff = np.mean(self.hue_differences)
+
+            avg_temp_value = 0.0
+            if self.temperature_values:
+                avg_temp_value = np.mean(self.temperature_values)
 
             histogram_data = None
             if self.color_analyzer.frames_count > 0:
@@ -610,7 +719,8 @@ class VideoProcessor:
                 "lighting_summary": {
                     "total_analyzed": sum(self.lighting_types_count.values()),
                     "distribution": lighting_summary,
-                    "most_common": self._get_most_common(self.lighting_types_count)
+                    "most_common": self._get_most_common(self.lighting_types_count),
+                    "exposure": self._calculate_exposure_summary()
                 },
                 "emotions_summary": {
                     "total_detected": sum(self.emotions_count.values()),
@@ -620,9 +730,11 @@ class VideoProcessor:
                 "color_analysis_summary": {
                     "temperature_distribution": color_temp_summary,
                     "most_common_temperature": self._get_most_common(self.color_temperatures_count),
+                    "avg_temperature_value": round(float(avg_temp_value), 3),
                     "color_scheme_distribution": color_scheme_summary,
                     "most_common_scheme": self._get_most_common(self.color_schemes_count),
-                    "global_palette": global_palette
+                    "global_palette": global_palette,
+                    "avg_hue_difference": round(float(avg_hue_diff), 1)
                 },
                 "composition_summary": composition_summary,
                 "total_frames_analyzed": self.total_frames_analyzed,
@@ -636,6 +748,9 @@ class VideoProcessor:
             logger.info(f"   - Frames analizados: {self.total_frames_analyzed}")
             logger.info(f"   - Tipos de plano: {len(self.shot_types_count)} diferentes")
             logger.info(f"   - Emociones detectadas: {sum(self.emotions_count.values())}")
+            logger.info(f"   - Datos de iluminación acumulados: {len(self.lighting_data)} frames")
+            logger.info(f"   - Diferencias de matiz acumuladas: {len(self.hue_differences)} frames")
+            logger.info(f"   - Valores de temperatura acumulados: {len(self.temperature_values)} frames")
 
             return results
 
@@ -706,6 +821,9 @@ class VideoProcessor:
             self.color_temperatures_count.clear()
             self.color_schemes_count.clear()
             self.global_colors.clear()
+            self.lighting_data.clear()
+            self.hue_differences.clear()
+            self.temperature_values.clear()
             self.total_frames_analyzed = 0
 
             self.camera_analyzer.reset()
