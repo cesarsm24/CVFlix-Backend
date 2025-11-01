@@ -14,7 +14,7 @@
 ---
 
 ## Descripción
-Plataforma de análisis automático de video mediante computer vision y deep learning. Implementa:  
+Plataforma de análisis automático de vídeo mediante computer vision y deep learning. Implementa:  
 
 - Detección facial  
 - Reconocimiento de actores  
@@ -25,4 +25,4 @@ Plataforma de análisis automático de video mediante computer vision y deep lea
 ---
 
 ## Wiki
-Para más información, documentación detallada y guía de uso, visita la [Wiki del proyecto](https://github.com/cesarsm24/CVFlix-Backend/wiki).  
+Para más información, documentación detallada y guía de uso, visita la [Wiki del proyecto](https://github.com/cesarsm24/cvflix_backend/wiki).  
